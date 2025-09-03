@@ -22,7 +22,7 @@ export function EntriesTable({ selectedDate }: EntriesTableProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedDoctor, setSelectedDoctor] = useState("");
+  const [selectedDoctor, setSelectedDoctor] = useState("all");
 
   const queryParams = new URLSearchParams();
   if (selectedDate) queryParams.append('date', selectedDate);
