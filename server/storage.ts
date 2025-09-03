@@ -1,4 +1,6 @@
-import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry } from "@shared/schema";
+import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, users, financialEntries } from "@shared/schema";
+import { db } from "./db";
+import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -141,4 +143,122 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DatabaseStorage implements IStorage {
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .returning();
+    return user;
+  }
+
+  async createFinancialEntry(insertEntry: InsertFinancialEntry): Promise<FinancialEntry> {
+    const [entry] = await db
+      .insert(financialEntries)
+      .values({
+        ...insertEntry,
+        observations: insertEntry.observations || ""
+      })
+      .returning();
+    return entry;
+  }
+
+  async getFinancialEntries(date?: string, doctor?: string): Promise<FinancialEntry[]> {
+    const conditions = [];
+    
+    if (date) {
+      conditions.push(eq(financialEntries.entryDate, date));
+    }
+    
+    if (doctor) {
+      conditions.push(eq(financialEntries.doctor, doctor));
+    }
+    
+    const entries = conditions.length > 0 
+      ? await db.select().from(financialEntries).where(and(...conditions))
+      : await db.select().from(financialEntries);
+    
+    return entries.sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+  }
+
+  async getFinancialEntry(id: string): Promise<FinancialEntry | undefined> {
+    const [entry] = await db.select().from(financialEntries).where(eq(financialEntries.id, id));
+    return entry || undefined;
+  }
+
+  async updateFinancialEntry(id: string, updateData: Partial<InsertFinancialEntry>): Promise<FinancialEntry | undefined> {
+    const [updated] = await db
+      .update(financialEntries)
+      .set(updateData)
+      .where(eq(financialEntries.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteFinancialEntry(id: string): Promise<boolean> {
+    const result = await db.delete(financialEntries).where(eq(financialEntries.id, id));
+    return (result.rowCount || 0) > 0;
+  }
+
+  async getDailySummary(date: string): Promise<{
+    total: number;
+    pixTotal: number;
+    creditCardTotal: number;
+    cashTotal: number;
+    transferTotal: number;
+    count: number;
+  }> {
+    const entries = await this.getFinancialEntries(date);
+    
+    let total = 0;
+    let pixTotal = 0;
+    let creditCardTotal = 0;
+    let cashTotal = 0;
+    let transferTotal = 0;
+    
+    for (const entry of entries) {
+      if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
+        for (const payment of entry.paymentDetails) {
+          const value = payment.value || 0;
+          total += value;
+          
+          switch (payment.method) {
+            case 'pix':
+              pixTotal += value;
+              break;
+            case 'cartao_credito':
+              creditCardTotal += value;
+              break;
+            case 'dinheiro':
+              cashTotal += value;
+              break;
+            case 'transferencia':
+              transferTotal += value;
+              break;
+          }
+        }
+      }
+    }
+    
+    return {
+      total,
+      pixTotal,
+      creditCardTotal,
+      cashTotal,
+      transferTotal,
+      count: entries.length
+    };
+  }
+}
+
+export const storage = new DatabaseStorage();

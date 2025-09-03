@@ -32,6 +32,7 @@ export function FinancialEntryForm() {
       procedureValue: "0",
       paymentDetails: [{ method: '', value: 0, installments: 1 }],
       invoiceNumber: "",
+      observations: "",
       entryBy: "",
       entryDate: new Date().toISOString().split('T')[0],
     },
@@ -334,6 +335,26 @@ export function FinancialEntryForm() {
                         placeholder="Deixe vazio se não foi solicitado"
                         data-testid="input-invoice-number"
                         className="h-12 text-base"
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="observations"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-base font-medium mb-3 block">Observações</FormLabel>
+                    <FormControl>
+                      <textarea 
+                        placeholder="Adicione observações sobre este lançamento..."
+                        data-testid="textarea-observations"
+                        className="w-full h-20 p-3 text-base border rounded-md resize-none focus:ring-2 focus:ring-primary focus:border-transparent"
                         value={field.value || ""}
                         onChange={field.onChange}
                       />

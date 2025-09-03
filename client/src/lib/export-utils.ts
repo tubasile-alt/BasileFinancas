@@ -42,6 +42,7 @@ export function exportToExcel(entries: FinancialEntry[], filename: string = 'ent
     'Valor Parcela': getCreditCardInstallmentValue(entry.paymentDetails) > 0 ? `R$ ${getCreditCardInstallmentValue(entry.paymentDetails).toFixed(2).replace('.', ',')}` : '',
     'Dinheiro': getPaymentByMethod(entry.paymentDetails, 'dinheiro') > 0 ? `R$ ${getPaymentByMethod(entry.paymentDetails, 'dinheiro').toFixed(2).replace('.', ',')}` : '',
     'Número NF': entry.invoiceNumber || '',
+    'Observações': entry.observations || '',
     'Lançado por': entry.entryBy
   }));
 
@@ -65,6 +66,7 @@ export function exportToExcel(entries: FinancialEntry[], filename: string = 'ent
     { wch: 12 }, // Valor Parcela
     { wch: 12 }, // Dinheiro
     { wch: 12 }, // Número NF
+    { wch: 20 }, // Observações
     { wch: 15 }  // Lançado por
   ];
   

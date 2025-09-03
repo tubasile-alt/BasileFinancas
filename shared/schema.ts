@@ -20,6 +20,7 @@ export const financialEntries = pgTable("financial_entries", {
   procedureValue: decimal("procedure_value", { precision: 10, scale: 2 }).notNull(),
   paymentDetails: json("payment_details").$type<PaymentDetail[]>().notNull(),
   invoiceNumber: text("invoice_number"),
+  observations: text("observations").notNull().default(""),
   entryBy: text("entry_by").notNull(),
   entryDate: text("entry_date").notNull(),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
