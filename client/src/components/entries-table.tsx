@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { exportToExcel, formatCurrency, formatTime } from "@/lib/export-utils";
 import { doctorOptions } from "@/lib/procedure-data";
 import { DailySummary } from "./daily-summary";
+import { CloseCashButton } from "./close-cash-button";
 
 interface EntriesTableProps {
   selectedDate: string;
@@ -164,6 +165,8 @@ export function EntriesTable({ selectedDate }: EntriesTableProps) {
               <Download className="mr-2 h-4 w-4" />
               Exportar
             </Button>
+            
+            <CloseCashButton selectedDate={selectedDate} />
           </div>
         </div>
       </CardHeader>

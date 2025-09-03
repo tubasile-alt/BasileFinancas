@@ -49,3 +49,25 @@ export const insertUserSchema = createInsertSchema(users).pick({
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+
+export const dailyClosure = pgTable("daily_closure", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  date: text("date").notNull().unique(),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  pixTotal: decimal("pix_total", { precision: 10, scale: 2 }).notNull().default("0"),
+  creditCardTotal: decimal("credit_card_total", { precision: 10, scale: 2 }).notNull().default("0"),
+  debitCardTotal: decimal("debit_card_total", { precision: 10, scale: 2 }).notNull().default("0"),
+  cashTotal: decimal("cash_total", { precision: 10, scale: 2 }).notNull().default("0"),
+  transferTotal: decimal("transfer_total", { precision: 10, scale: 2 }).notNull().default("0"),
+  entriesCount: integer("entries_count").notNull(),
+  closedBy: text("closed_by").notNull(),
+  closedAt: timestamp("closed_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const insertDailyClosureSchema = createInsertSchema(dailyClosure).omit({
+  id: true,
+  closedAt: true,
+});
+
+export type InsertDailyClosure = z.infer<typeof insertDailyClosureSchema>;
+export type DailyClosure = typeof dailyClosure.$inferSelect;

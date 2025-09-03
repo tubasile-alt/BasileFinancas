@@ -113,14 +113,18 @@ export const proceduresByDoctor: Record<string, ProcedureData[]> = {
     { name: 'DIFERENÇA PACOTE', value: 0 },
     { name: 'MADAH', value: 0 },
     { name: 'FITA SILICONE', value: 0 }
+  ],
+  'icb-transplante': [
+    { name: 'Transplante Capilar', value: 8000 }
   ]
 };
 
 export const doctorOptions = [
-  { value: 'dr-filipe', label: 'Dr. Filipe (Cirurgia Plástica)' },
-  { value: 'dr-vinicius', label: 'Dr. Vinícius (Cirurgia Plástica)' },
-  { value: 'dr-basile', label: 'Dr. Basile (Cirurgia Plástica)' },
-  { value: 'dr-arthur', label: 'Dr. Arthur (Dermatologia)' },
+  { value: 'dr-filipe', label: 'Dr. Filipe' },
+  { value: 'dr-vinicius', label: 'Dr. Vinícius' },
+  { value: 'dr-basile', label: 'Dr. Basile' },
+  { value: 'dr-arthur', label: 'Dr. Arthur' },
+  { value: 'icb-transplante', label: 'ICB Transplante Capilar' },
   { value: 'fisioterapia', label: 'Fisioterapia' }
 ];
 

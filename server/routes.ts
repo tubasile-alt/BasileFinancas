@@ -89,6 +89,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Daily closure routes
+  app.post("/api/daily-closure", async (req, res) => {
+    try {
+      const summary = await storage.getDailySummary(req.body.date);
+      const closure = await storage.createDailyClosure({
+        date: req.body.date,
+        totalAmount: summary.total.toString(),
+        pixTotal: summary.pixTotal.toString(),
+        creditCardTotal: summary.creditCardTotal.toString(),
+        debitCardTotal: summary.debitCardTotal.toString(),
+        cashTotal: summary.cashTotal.toString(),
+        transferTotal: summary.transferTotal.toString(),
+        entriesCount: summary.count,
+        closedBy: req.body.closedBy
+      });
+      res.json(closure);
+    } catch (error) {
+      console.error("Error creating daily closure:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/daily-closure/:date", async (req, res) => {
+    try {
+      const { date } = req.params;
+      const closure = await storage.getDailyClosure(date);
+      res.json(closure);
+    } catch (error) {
+      console.error("Error fetching daily closure:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

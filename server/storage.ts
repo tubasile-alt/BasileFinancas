@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, users, financialEntries } from "@shared/schema";
+import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, type DailyClosure, type InsertDailyClosure, users, financialEntries, dailyClosure } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -22,6 +22,9 @@ export interface IStorage {
     transferTotal: number;
     count: number;
   }>;
+  
+  createDailyClosure(closure: InsertDailyClosure): Promise<DailyClosure>;
+  getDailyClosure(date: string): Promise<DailyClosure | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -149,6 +152,14 @@ export class MemStorage implements IStorage {
       count: entries.length
     };
   }
+
+  async createDailyClosure(insertClosure: InsertDailyClosure): Promise<DailyClosure> {
+    throw new Error("MemStorage does not support daily closures");
+  }
+
+  async getDailyClosure(date: string): Promise<DailyClosure | undefined> {
+    throw new Error("MemStorage does not support daily closures");
+  }
 }
 
 export class DatabaseStorage implements IStorage {
@@ -269,6 +280,19 @@ export class DatabaseStorage implements IStorage {
       transferTotal,
       count: entries.length
     };
+  }
+
+  async createDailyClosure(insertClosure: InsertDailyClosure): Promise<DailyClosure> {
+    const [closure] = await db
+      .insert(dailyClosure)
+      .values(insertClosure)
+      .returning();
+    return closure;
+  }
+
+  async getDailyClosure(date: string): Promise<DailyClosure | undefined> {
+    const [closure] = await db.select().from(dailyClosure).where(eq(dailyClosure.date, date));
+    return closure || undefined;
   }
 }
 
