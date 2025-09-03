@@ -25,15 +25,14 @@ function getTotalValue(paymentDetails: any[]) {
 
 export function exportToExcel(entries: FinancialEntry[], filename: string = 'entradas-financeiras') {
   const worksheetData = entries.map(entry => ({
-    'Data': entry.entryDate,
     'Hora': entry.createdAt ? new Date(entry.createdAt).toLocaleTimeString('pt-BR') : '',
     'Paciente': entry.patientName,
     'Código': entry.patientCode,
     'Médico': entry.doctor,
     'Procedimento': entry.procedure,
-    'Valor Total': `R$ ${getTotalValue(entry.paymentDetails).toFixed(2).replace('.', ',')}`,
-    'Métodos de Pagamento': getPaymentMethodsText(entry.paymentDetails),
-    'Número NF': entry.invoiceNumber || 'N/A',
+    'Valor': `R$ ${getTotalValue(entry.paymentDetails).toFixed(2).replace('.', ',')}`,
+    'Pagamento': getPaymentMethodsText(entry.paymentDetails),
+    'Número NF': entry.invoiceNumber || '',
     'Lançado por': entry.entryBy
   }));
 
@@ -44,14 +43,13 @@ export function exportToExcel(entries: FinancialEntry[], filename: string = 'ent
   // Ajustar largura das colunas
   const maxWidth = worksheetData.reduce((w, r) => Math.max(w, r.Paciente.length), 10);
   worksheet['!cols'] = [
-    { wch: 12 }, // Data
     { wch: 8 },  // Hora
     { wch: Math.max(maxWidth, 15) }, // Paciente
     { wch: 10 }, // Código
     { wch: 15 }, // Médico
     { wch: 20 }, // Procedimento
-    { wch: 15 }, // Valor Total
-    { wch: 30 }, // Métodos de Pagamento
+    { wch: 15 }, // Valor
+    { wch: 30 }, // Pagamento
     { wch: 12 }, // Número NF
     { wch: 15 }  // Lançado por
   ];
