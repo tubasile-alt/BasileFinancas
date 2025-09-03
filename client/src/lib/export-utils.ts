@@ -1,26 +1,30 @@
 import type { FinancialEntry } from "@shared/schema";
 import * as XLSX from 'xlsx';
 
-function getPaymentMethodsText(paymentDetails: any[]) {
-  if (!paymentDetails || paymentDetails.length === 0) return 'N/A';
-  
-  return paymentDetails.map(payment => {
-    const labels: Record<string, string> = {
-      pix: 'PIX',
-      transferencia: 'Transferência',
-      cartao_credito: 'Cartão',
-      dinheiro: 'Dinheiro'
-    };
-    const methodLabel = labels[payment.method] || payment.method;
-    const value = `R$ ${payment.value.toFixed(2).replace('.', ',')}`;
-    const installments = payment.installments && payment.installments > 1 ? ` ${payment.installments}x` : '';
-    return `${methodLabel}${installments}: ${value}`;
-  }).join(' + ');
-}
-
 function getTotalValue(paymentDetails: any[]) {
   if (!paymentDetails || paymentDetails.length === 0) return 0;
   return paymentDetails.reduce((sum, payment) => sum + (payment.value || 0), 0);
+}
+
+function getPaymentByMethod(paymentDetails: any[], method: string) {
+  if (!paymentDetails || paymentDetails.length === 0) return 0;
+  const payment = paymentDetails.find(p => p.method === method);
+  return payment ? payment.value : 0;
+}
+
+function getCreditCardInstallments(paymentDetails: any[]) {
+  if (!paymentDetails || paymentDetails.length === 0) return '';
+  const payment = paymentDetails.find(p => p.method === 'cartao_credito');
+  return payment && payment.installments ? payment.installments : '';
+}
+
+function getCreditCardInstallmentValue(paymentDetails: any[]) {
+  if (!paymentDetails || paymentDetails.length === 0) return 0;
+  const payment = paymentDetails.find(p => p.method === 'cartao_credito');
+  if (payment && payment.installments && payment.installments > 1) {
+    return payment.value / payment.installments;
+  }
+  return payment ? payment.value : 0;
 }
 
 export function exportToExcel(entries: FinancialEntry[], filename: string = 'entradas-financeiras') {
@@ -30,8 +34,13 @@ export function exportToExcel(entries: FinancialEntry[], filename: string = 'ent
     'Código': entry.patientCode,
     'Médico': entry.doctor,
     'Procedimento': entry.procedure,
-    'Valor': `R$ ${getTotalValue(entry.paymentDetails).toFixed(2).replace('.', ',')}`,
-    'Pagamento': getPaymentMethodsText(entry.paymentDetails),
+    'Valor Total': `R$ ${getTotalValue(entry.paymentDetails).toFixed(2).replace('.', ',')}`,
+    'PIX': getPaymentByMethod(entry.paymentDetails, 'pix') > 0 ? `R$ ${getPaymentByMethod(entry.paymentDetails, 'pix').toFixed(2).replace('.', ',')}` : '',
+    'Transferência': getPaymentByMethod(entry.paymentDetails, 'transferencia') > 0 ? `R$ ${getPaymentByMethod(entry.paymentDetails, 'transferencia').toFixed(2).replace('.', ',')}` : '',
+    'Cartão': getPaymentByMethod(entry.paymentDetails, 'cartao_credito') > 0 ? `R$ ${getPaymentByMethod(entry.paymentDetails, 'cartao_credito').toFixed(2).replace('.', ',')}` : '',
+    'Nº Parcelas': getCreditCardInstallments(entry.paymentDetails),
+    'Valor Parcela': getCreditCardInstallmentValue(entry.paymentDetails) > 0 ? `R$ ${getCreditCardInstallmentValue(entry.paymentDetails).toFixed(2).replace('.', ',')}` : '',
+    'Dinheiro': getPaymentByMethod(entry.paymentDetails, 'dinheiro') > 0 ? `R$ ${getPaymentByMethod(entry.paymentDetails, 'dinheiro').toFixed(2).replace('.', ',')}` : '',
     'Número NF': entry.invoiceNumber || '',
     'Lançado por': entry.entryBy
   }));
@@ -48,8 +57,13 @@ export function exportToExcel(entries: FinancialEntry[], filename: string = 'ent
     { wch: 10 }, // Código
     { wch: 15 }, // Médico
     { wch: 20 }, // Procedimento
-    { wch: 15 }, // Valor
-    { wch: 30 }, // Pagamento
+    { wch: 12 }, // Valor Total
+    { wch: 12 }, // PIX
+    { wch: 12 }, // Transferência
+    { wch: 12 }, // Cartão
+    { wch: 10 }, // Nº Parcelas
+    { wch: 12 }, // Valor Parcela
+    { wch: 12 }, // Dinheiro
     { wch: 12 }, // Número NF
     { wch: 15 }  // Lançado por
   ];
