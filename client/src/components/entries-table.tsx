@@ -31,7 +31,8 @@ export function EntriesTable({ selectedDate }: EntriesTableProps) {
   const url = `/api/financial-entries${queryString ? `?${queryString}` : ''}`;
 
   const { data: entries = [], isLoading } = useQuery<FinancialEntry[]>({
-    queryKey: [url],
+    queryKey: ["/api/financial-entries", selectedDate, selectedDoctor === "all" ? null : selectedDoctor],
+    queryFn: () => fetch(url).then(res => res.json()),
     enabled: !!selectedDate,
   });
 
