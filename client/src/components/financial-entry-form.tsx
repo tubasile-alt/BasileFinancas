@@ -13,13 +13,14 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
+import type { PaymentDetail } from "@shared/schema";
 import { proceduresByDoctor, doctorOptions, paymentMethodOptions, entryByOptions, installmentOptions } from "@/lib/procedure-data";
 
 export function FinancialEntryForm() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedDoctor, setSelectedDoctor] = useState<string>("");
-  const [showInstallments, setShowInstallments] = useState(false);
+  const [paymentDetails, setPaymentDetails] = useState<PaymentDetail[]>([{ method: '', value: 0, installments: 1 }]);
 
   const form = useForm<InsertFinancialEntry>({
     resolver: zodResolver(insertFinancialEntrySchema),
@@ -29,9 +30,8 @@ export function FinancialEntryForm() {
       doctor: "",
       procedure: "",
       procedureValue: "0",
-      paymentMethod: "",
-      installments: 1,
-      invoiceRequested: false,
+      paymentDetails: [{ method: '', value: 0, installments: 1 }],
+      invoiceNumber: "",
       entryBy: "",
       entryDate: new Date().toISOString().split('T')[0],
     },
@@ -49,7 +49,7 @@ export function FinancialEntryForm() {
       });
       form.reset();
       setSelectedDoctor("");
-      setShowInstallments(false);
+      setPaymentDetails([{ method: '', value: 0, installments: 1 }]);
       queryClient.invalidateQueries({ queryKey: ["/api/financial-entries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/daily-summary"] });
     },
@@ -78,23 +78,39 @@ export function FinancialEntryForm() {
     }
   };
 
-  const handlePaymentMethodChange = (value: string) => {
-    form.setValue("paymentMethod", value);
-    const isCredit = value === "cartao_credito";
-    setShowInstallments(isCredit);
-    if (!isCredit) {
-      form.setValue("installments", 1);
+  const updatePaymentDetail = (index: number, field: keyof PaymentDetail, value: any) => {
+    const updated = [...paymentDetails];
+    updated[index] = { ...updated[index], [field]: value };
+    setPaymentDetails(updated);
+    form.setValue('paymentDetails', updated);
+  };
+
+  const addPaymentMethod = () => {
+    const updated = [...paymentDetails, { method: '', value: 0, installments: 1 }];
+    setPaymentDetails(updated);
+    form.setValue('paymentDetails', updated);
+  };
+
+  const removePaymentMethod = (index: number) => {
+    if (paymentDetails.length > 1) {
+      const updated = paymentDetails.filter((_, i) => i !== index);
+      setPaymentDetails(updated);
+      form.setValue('paymentDetails', updated);
     }
   };
 
   const onSubmit = (data: InsertFinancialEntry) => {
-    createEntryMutation.mutate(data);
+    const submitData = {
+      ...data,
+      paymentDetails: paymentDetails
+    };
+    createEntryMutation.mutate(submitData);
   };
 
   const handleClearForm = () => {
     form.reset();
     setSelectedDoctor("");
-    setShowInstallments(false);
+    setPaymentDetails([{ method: '', value: 0, installments: 1 }]);
   };
 
   const procedureOptions = selectedDoctor ? proceduresByDoctor[selectedDoctor] || [] : [];
@@ -209,7 +225,7 @@ export function FinancialEntryForm() {
                       <SelectContent>
                         {procedureOptions.map((procedure) => (
                           <SelectItem key={procedure.name} value={procedure.name}>
-                            {procedure.name} - R$ {procedure.value.toFixed(2).replace('.', ',')}
+                            {procedure.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -239,74 +255,108 @@ export function FinancialEntryForm() {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="paymentMethod"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-base font-medium mb-3 block">Modo de Pagamento *</FormLabel>
-                    <Select onValueChange={handlePaymentMethodChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-payment-method" className="h-12 text-base">
-                          <SelectValue placeholder="Selecione o modo" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {paymentMethodOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {showInstallments && (
-                <FormField
-                  control={form.control}
-                  name="installments"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-base font-medium mb-3 block">Quantidade de Parcelas</FormLabel>
-                      <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value?.toString()}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-installments" className="h-12 text-base">
+              {/* Seção de Múltiplos Pagamentos */}
+              <div className="col-span-full">
+                <FormLabel className="text-base font-medium mb-3 block">Métodos de Pagamento *</FormLabel>
+                <div className="space-y-4">
+                  {paymentDetails.map((payment, index) => (
+                    <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-lg">
+                      <div>
+                        <FormLabel className="text-sm font-medium mb-2 block">Método</FormLabel>
+                        <Select 
+                          value={payment.method} 
+                          onValueChange={(value) => updatePaymentDetail(index, 'method', value)}
+                        >
+                          <SelectTrigger className="h-10 text-sm">
                             <SelectValue placeholder="Selecione" />
                           </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {installmentOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
+                          <SelectContent>
+                            {paymentMethodOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div>
+                        <FormLabel className="text-sm font-medium mb-2 block">Valor (R$)</FormLabel>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={payment.value}
+                          onChange={(e) => updatePaymentDetail(index, 'value', parseFloat(e.target.value) || 0)}
+                          className="h-10 text-sm"
+                          placeholder="0,00"
+                        />
+                      </div>
+                      
+                      {payment.method === 'cartao_credito' && (
+                        <div>
+                          <FormLabel className="text-sm font-medium mb-2 block">Parcelas</FormLabel>
+                          <Select 
+                            value={payment.installments?.toString()} 
+                            onValueChange={(value) => updatePaymentDetail(index, 'installments', parseInt(value))}
+                          >
+                            <SelectTrigger className="h-10 text-sm">
+                              <SelectValue placeholder="1x" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {installmentOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-end space-x-2">
+                        {paymentDetails.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => removePaymentMethod(index)}
+                            className="h-10"
+                          >
+                            Remover
+                          </Button>
+                        )}
+                        {index === paymentDetails.length - 1 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={addPaymentMethod}
+                            className="h-10"
+                          >
+                            + Adicionar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
               <FormField
                 control={form.control}
-                name="invoiceRequested"
+                name="invoiceNumber"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center space-x-4 space-y-0 py-4">
+                  <FormItem>
+                    <FormLabel className="text-base font-medium mb-3 block">Número da Nota Fiscal</FormLabel>
                     <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        data-testid="checkbox-invoice"
-                        className="w-5 h-5"
+                      <Input 
+                        placeholder="Deixe vazio se não foi solicitado"
+                        data-testid="input-invoice-number"
+                        className="h-12 text-base"
+                        value={field.value || ""}
+                        onChange={field.onChange}
                       />
                     </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel className="text-base font-medium">Nota fiscal solicitada</FormLabel>
-                    </div>
                     <FormMessage />
                   </FormItem>
                 )}

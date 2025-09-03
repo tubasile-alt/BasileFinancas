@@ -1,7 +1,15 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, integer, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, integer, timestamp, json } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+export const paymentDetailSchema = z.object({
+  method: z.string(),
+  value: z.number(),
+  installments: z.number().optional(),
+});
+
+export type PaymentDetail = z.infer<typeof paymentDetailSchema>;
 
 export const financialEntries = pgTable("financial_entries", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -10,9 +18,8 @@ export const financialEntries = pgTable("financial_entries", {
   doctor: text("doctor").notNull(),
   procedure: text("procedure").notNull(),
   procedureValue: decimal("procedure_value", { precision: 10, scale: 2 }).notNull(),
-  paymentMethod: text("payment_method").notNull(),
-  installments: integer("installments").notNull().default(1),
-  invoiceRequested: boolean("invoice_requested").notNull().default(false),
+  paymentDetails: json("payment_details").$type<PaymentDetail[]>().notNull(),
+  invoiceNumber: text("invoice_number"),
   entryBy: text("entry_by").notNull(),
   entryDate: text("entry_date").notNull(),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
@@ -21,6 +28,8 @@ export const financialEntries = pgTable("financial_entries", {
 export const insertFinancialEntrySchema = createInsertSchema(financialEntries).omit({
   id: true,
   createdAt: true,
+}).extend({
+  paymentDetails: z.array(paymentDetailSchema).min(1, "Pelo menos um método de pagamento é obrigatório"),
 });
 
 export type InsertFinancialEntry = z.infer<typeof insertFinancialEntrySchema>;

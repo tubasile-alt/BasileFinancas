@@ -86,17 +86,21 @@ export function EntriesTable({ selectedDate }: EntriesTableProps) {
     return doctor ? doctor.label : doctorValue;
   };
 
-  const getPaymentLabel = (method: string, installments?: number) => {
-    if (method === 'cartao_credito' && installments && installments > 1) {
-      return `Cartão ${installments}x`;
-    }
-    const labels: Record<string, string> = {
-      pix: 'PIX',
-      transferencia: 'Transferência',
-      cartao_credito: 'Cartão',
-      dinheiro: 'Dinheiro'
-    };
-    return labels[method] || method;
+  const getPaymentLabel = (paymentDetails: any[]) => {
+    if (!paymentDetails || paymentDetails.length === 0) return 'N/A';
+    
+    return paymentDetails.map(payment => {
+      const labels: Record<string, string> = {
+        pix: 'PIX',
+        transferencia: 'Transferência',
+        cartao_credito: 'Cartão',
+        dinheiro: 'Dinheiro'
+      };
+      const methodLabel = labels[payment.method] || payment.method;
+      const value = `R$ ${payment.value.toFixed(2).replace('.', ',')}`;
+      const installments = payment.installments && payment.installments > 1 ? ` ${payment.installments}x` : '';
+      return `${methodLabel}${installments}: ${value}`;
+    }).join(' + ');
   };
 
   if (isLoading) {
@@ -179,7 +183,7 @@ export function EntriesTable({ selectedDate }: EntriesTableProps) {
                 <TableHead>Procedimento</TableHead>
                 <TableHead>Valor</TableHead>
                 <TableHead>Pagamento</TableHead>
-                <TableHead className="text-center">NF</TableHead>
+                <TableHead className="text-center">Número NF</TableHead>
                 <TableHead>Lançado por</TableHead>
                 <TableHead className="text-center">Ações</TableHead>
               </TableRow>
@@ -213,14 +217,10 @@ export function EntriesTable({ selectedDate }: EntriesTableProps) {
                       {formatCurrency(parseFloat(entry.procedureValue))}
                     </TableCell>
                     <TableCell className="text-sm" data-testid={`text-payment-${entry.id}`}>
-                      {getPaymentLabel(entry.paymentMethod, entry.installments || undefined)}
+                      {getPaymentLabel(entry.paymentDetails)}
                     </TableCell>
-                    <TableCell className="text-center" data-testid={`icon-invoice-${entry.id}`}>
-                      {entry.invoiceRequested ? (
-                        <Check className="h-4 w-4 text-accent mx-auto" />
-                      ) : (
-                        <X className="h-4 w-4 text-muted-foreground mx-auto" />
-                      )}
+                    <TableCell className="text-center text-sm" data-testid={`text-invoice-${entry.id}`}>
+                      {entry.invoiceNumber || 'N/A'}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground" data-testid={`text-entry-by-${entry.id}`}>
                       {entry.entryBy}

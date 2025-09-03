@@ -50,8 +50,7 @@ export class MemStorage implements IStorage {
     const id = randomUUID();
     const entry: FinancialEntry = { 
       ...insertEntry,
-      installments: insertEntry.installments ?? 1,
-      invoiceRequested: insertEntry.invoiceRequested ?? false,
+      invoiceNumber: insertEntry.invoiceNumber || null,
       id,
       createdAt: new Date()
     };
