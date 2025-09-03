@@ -165,10 +165,7 @@ export class DatabaseStorage implements IStorage {
   async createFinancialEntry(insertEntry: InsertFinancialEntry): Promise<FinancialEntry> {
     const [entry] = await db
       .insert(financialEntries)
-      .values({
-        ...insertEntry,
-        observations: insertEntry.observations || ""
-      })
+      .values(insertEntry)
       .returning();
     return entry;
   }
