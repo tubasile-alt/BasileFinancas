@@ -115,7 +115,8 @@ export const proceduresByDoctor: Record<string, ProcedureData[]> = {
     { name: 'FITA SILICONE', value: 0 }
   ],
   'icb-transplante': [
-    { name: 'Transplante Capilar', value: 8000 }
+    { name: 'Transplante Capilar', value: 8000 },
+    { name: 'Body Hair', value: 0 }
   ]
 };
 
