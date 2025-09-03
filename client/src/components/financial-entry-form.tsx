@@ -64,18 +64,59 @@ export function FinancialEntryForm() {
   });
 
   const handleDoctorChange = (value: string) => {
-    setSelectedDoctor(value);
-    form.setValue("doctor", value);
-    form.setValue("procedure", "");
-    form.setValue("procedureValue", "0");
+    try {
+      console.log('👨‍⚕️ Selecionando médico:', value);
+      
+      if (!value || typeof value !== 'string') {
+        console.warn('❌ Valor inválido do médico:', value);
+        return;
+      }
+      
+      // Verificar se as opções de procedimento existem
+      const procedures = proceduresByDoctor[value];
+      console.log('📋 Procedimentos encontrados:', procedures?.length || 0);
+      
+      setSelectedDoctor(value);
+      form.setValue("doctor", value);
+      form.setValue("procedure", "");
+      form.setValue("procedureValue", "0");
+      
+      // Force re-render to ensure UI updates
+      form.trigger(["doctor", "procedure", "procedureValue"]);
+      
+      console.log('✅ Médico selecionado com sucesso:', value);
+    } catch (error) {
+      console.error('🔴 ERRO CRÍTICO em handleDoctorChange:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao selecionar médico. Recarregue a página se o problema persistir.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleProcedureChange = (value: string) => {
-    form.setValue("procedure", value);
-    const procedures = proceduresByDoctor[selectedDoctor] || [];
-    const selectedProcedure = procedures.find(p => p.name === value);
-    if (selectedProcedure) {
-      form.setValue("procedureValue", selectedProcedure.value.toString());
+    try {
+      if (!value || typeof value !== 'string' || !selectedDoctor) {
+        console.warn('Invalid procedure value or no doctor selected:', { value, selectedDoctor });
+        return;
+      }
+      
+      form.setValue("procedure", value);
+      const procedures = proceduresByDoctor[selectedDoctor] || [];
+      const selectedProcedure = procedures.find(p => p.name === value);
+      if (selectedProcedure && typeof selectedProcedure.value === 'number') {
+        form.setValue("procedureValue", selectedProcedure.value.toString());
+      }
+      
+      form.trigger(["procedure", "procedureValue"]);
+    } catch (error) {
+      console.error('Error in handleProcedureChange:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao selecionar procedimento. Tente novamente.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -114,7 +155,18 @@ export function FinancialEntryForm() {
     setPaymentDetails([{ method: '', value: 0, installments: 1 }]);
   };
 
-  const procedureOptions = selectedDoctor ? proceduresByDoctor[selectedDoctor] || [] : [];
+  const procedureOptions = (() => {
+    try {
+      if (!selectedDoctor || typeof selectedDoctor !== 'string') {
+        return [];
+      }
+      const options = proceduresByDoctor[selectedDoctor];
+      return Array.isArray(options) ? options : [];
+    } catch (error) {
+      console.error('Error getting procedure options:', error);
+      return [];
+    }
+  })();
   const procedureValue = form.watch("procedureValue");
 
   return (
@@ -199,10 +251,12 @@ export function FinancialEntryForm() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {doctorOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
+                        {Array.isArray(doctorOptions) && doctorOptions.map((option) => (
+                          option && option.value && option.label ? (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ) : null
                         ))}
                       </SelectContent>
                     </Select>
@@ -224,10 +278,12 @@ export function FinancialEntryForm() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {procedureOptions.map((procedure) => (
-                          <SelectItem key={procedure.name} value={procedure.name}>
-                            {procedure.name}
-                          </SelectItem>
+                        {Array.isArray(procedureOptions) && procedureOptions.map((procedure) => (
+                          procedure && procedure.name ? (
+                            <SelectItem key={procedure.name} value={procedure.name}>
+                              {procedure.name}
+                            </SelectItem>
+                          ) : null
                         ))}
                       </SelectContent>
                     </Select>
