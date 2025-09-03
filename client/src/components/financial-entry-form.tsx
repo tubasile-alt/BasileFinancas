@@ -266,10 +266,10 @@ export function FinancialEntryForm() {
                         <Input
                           type="number"
                           step="0.01"
-                          value={payment.value}
+                          value={payment.value || ''}
                           onChange={(e) => updatePaymentDetail(index, 'value', parseFloat(e.target.value) || 0)}
-                          className="h-10 text-sm"
-                          placeholder="0,00"
+                          className="h-10 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          placeholder="Digite o valor"
                         />
                       </div>
                       

@@ -214,7 +214,7 @@ export function EntriesTable({ selectedDate }: EntriesTableProps) {
                       {entry.procedure}
                     </TableCell>
                     <TableCell className="text-sm font-semibold" data-testid={`text-value-${entry.id}`}>
-                      {formatCurrency(parseFloat(entry.procedureValue))}
+                      {entry.paymentDetails ? formatCurrency(entry.paymentDetails.reduce((sum, payment) => sum + (payment.value || 0), 0)) : 'R$ 0,00'}
                     </TableCell>
                     <TableCell className="text-sm" data-testid={`text-payment-${entry.id}`}>
                       {getPaymentLabel(entry.paymentDetails)}
