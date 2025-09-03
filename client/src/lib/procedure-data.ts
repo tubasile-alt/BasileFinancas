@@ -79,8 +79,7 @@ export const proceduresByDoctor: Record<string, ProcedureData[]> = {
     { name: 'Silhouet', value: 2000 },
     { name: 'Exilis Face', value: 0 },
     { name: 'Exilis Corpo', value: 0 },
-    { name: 'Coolsculpting', value: 0 },
-    { name: 'Leia antes', value: 0 }
+    { name: 'Coolsculpting', value: 0 }
   ],
   'dr-arthur': [
     { name: 'Botox pequeno básico', value: 200 },
@@ -117,21 +116,23 @@ export const proceduresByDoctor: Record<string, ProcedureData[]> = {
     { name: 'Silhouet', value: 2000 },
     { name: 'Exilis Face', value: 0 },
     { name: 'Exilis Corpo', value: 0 },
-    { name: 'Coolsculpting', value: 0 },
-    { name: 'Leia antes', value: 0 }
+    { name: 'Coolsculpting', value: 0 }
   ],
   'fisioterapia': [
-    { name: 'Piaglisplase', value: 40 },
-    { name: 'Piaglisslise', value: 100 },
-    { name: 'Microagulhamento', value: 0 },
-    { name: 'Infiltração', value: 0 },
-    { name: 'Ulthera', value: 0 },
-    { name: 'Sculptra', value: 900 },
-    { name: 'Silhouet', value: 2000 },
-    { name: 'Exilis Face', value: 0 },
-    { name: 'Exilis Corpo', value: 0 },
-    { name: 'Coolsculpting', value: 0 },
-    { name: 'Rita Star', value: 0 }
+    { name: 'dlus 4 sessões', value: 0 },
+    { name: 'Limpeza de pele', value: 0 },
+    { name: 'PACOTE LIMPEZA DE PELE', value: 0 },
+    { name: 'dlus 10 sessões', value: 0 },
+    { name: 'LP+MDA', value: 0 },
+    { name: 'PACOTE LP+MDA', value: 0 },
+    { name: 'MDA FACIAL', value: 0 },
+    { name: 'MDA+PQ+ESTRIAS P', value: 0 },
+    { name: 'MDA+PQ+ESTRIAS M', value: 0 },
+    { name: 'MDA+PQ+ESTRIAS G', value: 0 },
+    { name: '1 DRENAGEM', value: 0 },
+    { name: 'DIFERENÇA PACOTE', value: 0 },
+    { name: 'MADAH', value: 0 },
+    { name: 'FITA SILICONE', value: 0 }
   ]
 };
 
