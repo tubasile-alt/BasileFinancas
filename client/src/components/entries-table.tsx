@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { List, Download, Edit, Trash2, Check, X } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +15,7 @@ import { exportToExcel, formatCurrency, formatTime } from "@/lib/export-utils";
 import { doctorOptions } from "@/lib/procedure-data";
 import { DailySummary } from "./daily-summary";
 import { CloseCashButton } from "./close-cash-button";
+import { FinancialEntryForm } from "./financial-entry-form";
 
 interface EntriesTableProps {
   selectedDate: string;
@@ -24,6 +26,8 @@ export function EntriesTable({ selectedDate }: EntriesTableProps) {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDoctor, setSelectedDoctor] = useState("all");
+  const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const queryParams = new URLSearchParams();
   if (selectedDate) queryParams.append('date', selectedDate);
@@ -62,6 +66,16 @@ export function EntriesTable({ selectedDate }: EntriesTableProps) {
     if (confirm("Tem certeza que deseja excluir esta entrada?")) {
       deleteEntryMutation.mutate(id);
     }
+  };
+
+  const handleEditEntry = (entry: FinancialEntry) => {
+    setEditingEntry(entry);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditClose = () => {
+    setEditingEntry(null);
+    setIsEditDialogOpen(false);
   };
 
   const handleExport = () => {
@@ -235,6 +249,7 @@ export function EntriesTable({ selectedDate }: EntriesTableProps) {
                           variant="ghost"
                           size="sm"
                           className="text-primary hover:text-primary/80"
+                          onClick={() => handleEditEntry(entry)}
                           data-testid={`button-edit-${entry.id}`}
                         >
                           <Edit className="h-4 w-4" />
@@ -258,6 +273,24 @@ export function EntriesTable({ selectedDate }: EntriesTableProps) {
         </div>
       </CardContent>
     </Card>
+
+    <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Editar Entrada</DialogTitle>
+          <DialogDescription>
+            Edite os dados da entrada financeira.
+          </DialogDescription>
+        </DialogHeader>
+        {editingEntry && (
+          <FinancialEntryForm 
+            mode="edit" 
+            editData={editingEntry}
+            onSuccess={handleEditClose}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
     </div>
   );
 }

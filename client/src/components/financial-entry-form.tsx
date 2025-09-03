@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertFinancialEntrySchema } from "@shared/schema";
-import type { InsertFinancialEntry } from "@shared/schema";
+import type { InsertFinancialEntry, FinancialEntry } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,13 @@ import { useState, useEffect } from "react";
 import type { PaymentDetail } from "@shared/schema";
 import { proceduresByDoctor, doctorOptions, paymentMethodOptions, entryByOptions, installmentOptions } from "@/lib/procedure-data";
 
-export function FinancialEntryForm() {
+interface FinancialEntryFormProps {
+  mode?: 'create' | 'edit';
+  editData?: FinancialEntry;
+  onSuccess?: () => void;
+}
+
+export function FinancialEntryForm({ mode = 'create', editData, onSuccess }: FinancialEntryFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedDoctor, setSelectedDoctor] = useState<string>("");
@@ -24,7 +30,18 @@ export function FinancialEntryForm() {
 
   const form = useForm<InsertFinancialEntry>({
     resolver: zodResolver(insertFinancialEntrySchema),
-    defaultValues: {
+    defaultValues: mode === 'edit' && editData ? {
+      patientName: editData.patientName || "",
+      patientCode: editData.patientCode || "",
+      doctor: editData.doctor || "",
+      procedure: editData.procedure || "",
+      procedureValue: editData.procedureValue || "0",
+      paymentDetails: editData.paymentDetails || [{ method: '', value: 0, installments: 1 }],
+      invoiceNumber: editData.invoiceNumber || "",
+      observations: editData.observations || "",
+      entryBy: editData.entryBy || "",
+      entryDate: editData.entryDate || new Date().toISOString().split('T')[0],
+    } : {
       patientName: "",
       patientCode: "",
       doctor: "",
@@ -38,26 +55,61 @@ export function FinancialEntryForm() {
     },
   });
 
-  const createEntryMutation = useMutation({
+  // Initialize form with edit data
+  useEffect(() => {
+    if (mode === 'edit' && editData) {
+      setSelectedDoctor(editData.doctor || "");
+      setPaymentDetails(editData.paymentDetails || [{ method: '', value: 0, installments: 1 }]);
+      
+      // Reset form with edit data
+      form.reset({
+        patientName: editData.patientName || "",
+        patientCode: editData.patientCode || "",
+        doctor: editData.doctor || "",
+        procedure: editData.procedure || "",
+        procedureValue: editData.procedureValue || "0",
+        paymentDetails: editData.paymentDetails || [{ method: '', value: 0, installments: 1 }],
+        invoiceNumber: editData.invoiceNumber || "",
+        observations: editData.observations || "",
+        entryBy: editData.entryBy || "",
+        entryDate: editData.entryDate || new Date().toISOString().split('T')[0],
+      });
+    }
+  }, [mode, editData, form]);
+
+  const saveEntryMutation = useMutation({
     mutationFn: async (data: InsertFinancialEntry) => {
-      const response = await apiRequest("POST", "/api/financial-entries", data);
-      return response.json();
+      if (mode === 'edit' && editData) {
+        const response = await apiRequest("PATCH", `/api/financial-entries/${editData.id}`, data);
+        return response.json();
+      } else {
+        const response = await apiRequest("POST", "/api/financial-entries", data);
+        return response.json();
+      }
     },
     onSuccess: () => {
       toast({
-        title: "Entrada salva com sucesso!",
-        description: "A entrada financeira foi registrada.",
+        title: mode === 'edit' ? "Entrada atualizada com sucesso!" : "Entrada salva com sucesso!",
+        description: mode === 'edit' ? "A entrada financeira foi atualizada." : "A entrada financeira foi registrada.",
       });
-      form.reset();
-      setSelectedDoctor("");
-      setPaymentDetails([{ method: '', value: 0, installments: 1 }]);
+      
+      if (mode === 'create') {
+        form.reset();
+        setSelectedDoctor("");
+        setPaymentDetails([{ method: '', value: 0, installments: 1 }]);
+      }
+      
       queryClient.invalidateQueries({ queryKey: ["/api/financial-entries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/daily-summary"] });
+      
+      if (onSuccess) {
+        onSuccess();
+      }
     },
     onError: () => {
       toast({
-        title: "Erro ao salvar entrada",
-        description: "Ocorreu um erro ao registrar a entrada financeira.",
+        title: mode === 'edit' ? "Erro ao atualizar entrada" : "Erro ao salvar entrada",
+        description: mode === 'edit' ? "Ocorreu um erro ao atualizar a entrada financeira." : "Ocorreu um erro ao registrar a entrada financeira.",
         variant: "destructive",
       });
     },
@@ -146,7 +198,7 @@ export function FinancialEntryForm() {
       ...data,
       paymentDetails: paymentDetails
     };
-    createEntryMutation.mutate(submitData);
+    saveEntryMutation.mutate(submitData);
   };
 
   const handleClearForm = () => {
@@ -465,12 +517,12 @@ export function FinancialEntryForm() {
               </Button>
               <Button 
                 type="submit" 
-                disabled={createEntryMutation.isPending}
+                disabled={saveEntryMutation.isPending}
                 data-testid="button-submit"
                 className="h-12 px-8 text-base bg-primary hover:bg-primary/90"
               >
                 <Save className="mr-2 h-5 w-5" />
-                {createEntryMutation.isPending ? "Salvando..." : "Salvar Entrada"}
+                {saveEntryMutation.isPending ? "Salvando..." : "Salvar Entrada"}
               </Button>
             </div>
           </form>
