@@ -235,25 +235,6 @@ export function FinancialEntryForm() {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="procedureValue"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-base font-medium mb-3 block">Valor do Procedimento</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="R$ 0,00"
-                        readOnly
-                        value={procedureValue ? `R$ ${parseFloat(procedureValue).toFixed(2).replace('.', ',')}` : "R$ 0,00"}
-                        data-testid="input-procedure-value"
-                        className="bg-muted h-12 text-base font-semibold"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               {/* Seção de Múltiplos Pagamentos */}
               <div className="col-span-full">

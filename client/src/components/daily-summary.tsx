@@ -8,9 +8,10 @@ interface DailySummaryProps {
 
 interface DailySummaryData {
   total: number;
-  plasticsTotal: number;
-  dermatologyTotal: number;
-  physiotherapyTotal: number;
+  pixTotal: number;
+  creditCardTotal: number;
+  cashTotal: number;
+  transferTotal: number;
   count: number;
 }
 
@@ -42,21 +43,21 @@ export function DailySummary({ date }: DailySummaryProps) {
         </div>
       </Card>
       <Card className="p-4 border border-border bg-background">
-        <div className="text-xs text-muted-foreground uppercase tracking-wide">Cirurgia Plástica</div>
-        <div className="text-2xl font-semibold text-foreground" data-testid="text-plastics-total">
-          {formatCurrency(summary.plasticsTotal)}
+        <div className="text-xs text-muted-foreground uppercase tracking-wide">PIX</div>
+        <div className="text-2xl font-semibold text-foreground" data-testid="text-pix-total">
+          {formatCurrency(summary.pixTotal)}
         </div>
       </Card>
       <Card className="p-4 border border-border bg-background">
-        <div className="text-xs text-muted-foreground uppercase tracking-wide">Dermatologia</div>
-        <div className="text-2xl font-semibold text-foreground" data-testid="text-dermatology-total">
-          {formatCurrency(summary.dermatologyTotal)}
+        <div className="text-xs text-muted-foreground uppercase tracking-wide">Cartão</div>
+        <div className="text-2xl font-semibold text-foreground" data-testid="text-credit-card-total">
+          {formatCurrency(summary.creditCardTotal)}
         </div>
       </Card>
       <Card className="p-4 border border-border bg-background">
-        <div className="text-xs text-muted-foreground uppercase tracking-wide">Fisioterapia</div>
-        <div className="text-2xl font-semibold text-foreground" data-testid="text-physiotherapy-total">
-          {formatCurrency(summary.physiotherapyTotal)}
+        <div className="text-xs text-muted-foreground uppercase tracking-wide">Dinheiro</div>
+        <div className="text-2xl font-semibold text-foreground" data-testid="text-cash-total">
+          {formatCurrency(summary.cashTotal)}
         </div>
       </Card>
     </div>

@@ -13,9 +13,10 @@ export interface IStorage {
   deleteFinancialEntry(id: string): Promise<boolean>;
   getDailySummary(date: string): Promise<{
     total: number;
-    plasticsTotal: number;
-    dermatologyTotal: number;
-    physiotherapyTotal: number;
+    pixTotal: number;
+    creditCardTotal: number;
+    cashTotal: number;
+    transferTotal: number;
     count: number;
   }>;
 }
@@ -91,36 +92,50 @@ export class MemStorage implements IStorage {
 
   async getDailySummary(date: string): Promise<{
     total: number;
-    plasticsTotal: number;
-    dermatologyTotal: number;
-    physiotherapyTotal: number;
+    pixTotal: number;
+    creditCardTotal: number;
+    cashTotal: number;
+    transferTotal: number;
     count: number;
   }> {
     const entries = await this.getFinancialEntries(date);
     
     let total = 0;
-    let plasticsTotal = 0;
-    let dermatologyTotal = 0;
-    let physiotherapyTotal = 0;
+    let pixTotal = 0;
+    let creditCardTotal = 0;
+    let cashTotal = 0;
+    let transferTotal = 0;
     
     for (const entry of entries) {
-      const value = parseFloat(entry.procedureValue);
-      total += value;
-      
-      if (entry.doctor === 'dr-filipe' || entry.doctor === 'dr-vinicius') {
-        plasticsTotal += value;
-      } else if (entry.doctor === 'dr-basile' || entry.doctor === 'dr-arthur') {
-        dermatologyTotal += value;
-      } else if (entry.doctor === 'fisioterapia') {
-        physiotherapyTotal += value;
+      if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
+        for (const payment of entry.paymentDetails) {
+          const value = payment.value || 0;
+          total += value;
+          
+          switch (payment.method) {
+            case 'pix':
+              pixTotal += value;
+              break;
+            case 'cartao_credito':
+              creditCardTotal += value;
+              break;
+            case 'dinheiro':
+              cashTotal += value;
+              break;
+            case 'transferencia':
+              transferTotal += value;
+              break;
+          }
+        }
       }
     }
     
     return {
       total,
-      plasticsTotal,
-      dermatologyTotal,
-      physiotherapyTotal,
+      pixTotal,
+      creditCardTotal,
+      cashTotal,
+      transferTotal,
       count: entries.length
     };
   }

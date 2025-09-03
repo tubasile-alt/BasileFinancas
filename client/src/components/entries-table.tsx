@@ -123,7 +123,7 @@ export function EntriesTable({ selectedDate }: EntriesTableProps) {
   return (
     <div className="mt-12">
       <div className="mb-6 text-center">
-        <h2 className="text-2xl font-bold text-foreground mb-2">Entradas do Dia</h2>
+        <h2 className="text-2xl font-bold text-foreground mb-2">Caixa do Dia</h2>
         <p className="text-muted-foreground">Registros financeiros de hoje</p>
       </div>
       
