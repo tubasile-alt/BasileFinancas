@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { List, Download, Edit, Trash2, Check, X } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { exportToCSV, formatCurrency, formatTime } from "@/lib/export-utils";
+import { exportToExcel, formatCurrency, formatTime } from "@/lib/export-utils";
 import { doctorOptions } from "@/lib/procedure-data";
 import { DailySummary } from "./daily-summary";
 
@@ -65,10 +65,10 @@ export function EntriesTable({ selectedDate }: EntriesTableProps) {
 
   const handleExport = () => {
     const filteredEntries = filterEntries(entries);
-    exportToCSV(filteredEntries, `entradas-${selectedDate}`);
+    exportToExcel(filteredEntries, `entradas-${selectedDate}`);
     toast({
       title: "Exportação concluída",
-      description: "Os dados foram exportados para CSV.",
+      description: "Os dados foram exportados para Excel.",
     });
   };
 

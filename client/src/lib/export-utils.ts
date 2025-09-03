@@ -1,48 +1,62 @@
 import type { FinancialEntry } from "@shared/schema";
+import * as XLSX from 'xlsx';
 
-export function exportToCSV(entries: FinancialEntry[], filename: string = 'entradas-financeiras') {
-  const headers = [
-    'Data',
-    'Hora',
-    'Paciente',
-    'Código',
-    'Médico',
-    'Procedimento',
-    'Valor',
-    'Pagamento',
-    'Parcelas',
-    'Nota Fiscal',
-    'Lançado por'
+function getPaymentMethodsText(paymentDetails: any[]) {
+  if (!paymentDetails || paymentDetails.length === 0) return 'N/A';
+  
+  return paymentDetails.map(payment => {
+    const labels: Record<string, string> = {
+      pix: 'PIX',
+      transferencia: 'Transferência',
+      cartao_credito: 'Cartão',
+      dinheiro: 'Dinheiro'
+    };
+    const methodLabel = labels[payment.method] || payment.method;
+    const value = `R$ ${payment.value.toFixed(2).replace('.', ',')}`;
+    const installments = payment.installments && payment.installments > 1 ? ` ${payment.installments}x` : '';
+    return `${methodLabel}${installments}: ${value}`;
+  }).join(' + ');
+}
+
+function getTotalValue(paymentDetails: any[]) {
+  if (!paymentDetails || paymentDetails.length === 0) return 0;
+  return paymentDetails.reduce((sum, payment) => sum + (payment.value || 0), 0);
+}
+
+export function exportToExcel(entries: FinancialEntry[], filename: string = 'entradas-financeiras') {
+  const worksheetData = entries.map(entry => ({
+    'Data': entry.entryDate,
+    'Hora': entry.createdAt ? new Date(entry.createdAt).toLocaleTimeString('pt-BR') : '',
+    'Paciente': entry.patientName,
+    'Código': entry.patientCode,
+    'Médico': entry.doctor,
+    'Procedimento': entry.procedure,
+    'Valor Total': `R$ ${getTotalValue(entry.paymentDetails).toFixed(2).replace('.', ',')}`,
+    'Métodos de Pagamento': getPaymentMethodsText(entry.paymentDetails),
+    'Número NF': entry.invoiceNumber || 'N/A',
+    'Lançado por': entry.entryBy
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Entradas Financeiras");
+  
+  // Ajustar largura das colunas
+  const maxWidth = worksheetData.reduce((w, r) => Math.max(w, r.Paciente.length), 10);
+  worksheet['!cols'] = [
+    { wch: 12 }, // Data
+    { wch: 8 },  // Hora
+    { wch: Math.max(maxWidth, 15) }, // Paciente
+    { wch: 10 }, // Código
+    { wch: 15 }, // Médico
+    { wch: 20 }, // Procedimento
+    { wch: 15 }, // Valor Total
+    { wch: 30 }, // Métodos de Pagamento
+    { wch: 12 }, // Número NF
+    { wch: 15 }  // Lançado por
   ];
-
-  const csvContent = [
-    headers.join(','),
-    ...entries.map(entry => [
-      entry.entryDate,
-      entry.createdAt ? new Date(entry.createdAt).toLocaleTimeString('pt-BR') : '',
-      `"${entry.patientName}"`,
-      entry.patientCode,
-      entry.doctor,
-      `"${entry.procedure}"`,
-      `"R$ ${parseFloat(entry.procedureValue).toFixed(2).replace('.', ',')}"`,
-      entry.paymentMethod,
-      entry.installments || 1,
-      entry.invoiceRequested ? 'Sim' : 'Não',
-      entry.entryBy
-    ].join(','))
-  ].join('\n');
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
   
-  link.setAttribute('href', url);
-  link.setAttribute('download', `${filename}-${new Date().toISOString().split('T')[0]}.csv`);
-  link.style.visibility = 'hidden';
-  
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  XLSX.writeFile(workbook, `${filename}-${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 export function formatCurrency(value: number | string): string {
