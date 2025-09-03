@@ -17,6 +17,7 @@ export interface IStorage {
     total: number;
     pixTotal: number;
     creditCardTotal: number;
+    debitCardTotal: number;
     cashTotal: number;
     transferTotal: number;
     count: number;
@@ -53,6 +54,7 @@ export class MemStorage implements IStorage {
     const id = randomUUID();
     const entry: FinancialEntry = { 
       ...insertEntry,
+      observations: insertEntry.observations || null,
       invoiceNumber: insertEntry.invoiceNumber || null,
       id,
       createdAt: new Date()
@@ -96,6 +98,7 @@ export class MemStorage implements IStorage {
     total: number;
     pixTotal: number;
     creditCardTotal: number;
+    debitCardTotal: number;
     cashTotal: number;
     transferTotal: number;
     count: number;
@@ -105,6 +108,7 @@ export class MemStorage implements IStorage {
     let total = 0;
     let pixTotal = 0;
     let creditCardTotal = 0;
+    let debitCardTotal = 0;
     let cashTotal = 0;
     let transferTotal = 0;
     
@@ -121,6 +125,9 @@ export class MemStorage implements IStorage {
             case 'cartao_credito':
               creditCardTotal += value;
               break;
+            case 'cartao_debito':
+              debitCardTotal += value;
+              break;
             case 'dinheiro':
               cashTotal += value;
               break;
@@ -136,6 +143,7 @@ export class MemStorage implements IStorage {
       total,
       pixTotal,
       creditCardTotal,
+      debitCardTotal,
       cashTotal,
       transferTotal,
       count: entries.length
@@ -211,6 +219,7 @@ export class DatabaseStorage implements IStorage {
     total: number;
     pixTotal: number;
     creditCardTotal: number;
+    debitCardTotal: number;
     cashTotal: number;
     transferTotal: number;
     count: number;
@@ -220,6 +229,7 @@ export class DatabaseStorage implements IStorage {
     let total = 0;
     let pixTotal = 0;
     let creditCardTotal = 0;
+    let debitCardTotal = 0;
     let cashTotal = 0;
     let transferTotal = 0;
     
@@ -236,6 +246,9 @@ export class DatabaseStorage implements IStorage {
             case 'cartao_credito':
               creditCardTotal += value;
               break;
+            case 'cartao_debito':
+              debitCardTotal += value;
+              break;
             case 'dinheiro':
               cashTotal += value;
               break;
@@ -251,6 +264,7 @@ export class DatabaseStorage implements IStorage {
       total,
       pixTotal,
       creditCardTotal,
+      debitCardTotal,
       cashTotal,
       transferTotal,
       count: entries.length

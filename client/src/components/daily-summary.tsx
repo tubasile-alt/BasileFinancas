@@ -10,6 +10,7 @@ interface DailySummaryData {
   total: number;
   pixTotal: number;
   creditCardTotal: number;
+  debitCardTotal: number;
   cashTotal: number;
   transferTotal: number;
   count: number;
@@ -23,8 +24,8 @@ export function DailySummary({ date }: DailySummaryProps) {
 
   if (!summary) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        {[...Array(5)].map((_, i) => (
           <Card key={i} className="p-4 animate-pulse">
             <div className="h-4 bg-muted rounded w-24 mb-2"></div>
             <div className="h-8 bg-muted rounded w-32"></div>
@@ -35,7 +36,7 @@ export function DailySummary({ date }: DailySummaryProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
       <Card className="p-4 border border-border bg-background">
         <div className="text-xs text-muted-foreground uppercase tracking-wide">Total do Dia</div>
         <div className="text-2xl font-semibold text-foreground" data-testid="text-daily-total">
@@ -49,9 +50,15 @@ export function DailySummary({ date }: DailySummaryProps) {
         </div>
       </Card>
       <Card className="p-4 border border-border bg-background">
-        <div className="text-xs text-muted-foreground uppercase tracking-wide">Cartão</div>
+        <div className="text-xs text-muted-foreground uppercase tracking-wide">Cartão Crédito</div>
         <div className="text-2xl font-semibold text-foreground" data-testid="text-credit-card-total">
           {formatCurrency(summary.creditCardTotal)}
+        </div>
+      </Card>
+      <Card className="p-4 border border-border bg-background">
+        <div className="text-xs text-muted-foreground uppercase tracking-wide">Cartão Débito</div>
+        <div className="text-2xl font-semibold text-foreground" data-testid="text-debit-card-total">
+          {formatCurrency(summary.debitCardTotal)}
         </div>
       </Card>
       <Card className="p-4 border border-border bg-background">

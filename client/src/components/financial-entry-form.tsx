@@ -295,6 +295,12 @@ export function FinancialEntryForm() {
                         </div>
                       )}
                       
+                      {payment.method === 'cartao_debito' && (
+                        <div className="text-sm text-gray-600 mt-2">
+                          * Cartão de débito: apenas à vista
+                        </div>
+                      )}
+                      
                       <div className="flex items-end space-x-2">
                         {paymentDetails.length > 1 && (
                           <Button

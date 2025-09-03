@@ -40,6 +40,7 @@ export function exportToExcel(entries: FinancialEntry[], filename: string = 'ent
     'Cartão': getPaymentByMethod(entry.paymentDetails, 'cartao_credito') > 0 ? `R$ ${getPaymentByMethod(entry.paymentDetails, 'cartao_credito').toFixed(2).replace('.', ',')}` : '',
     'Nº Parcelas': getCreditCardInstallments(entry.paymentDetails),
     'Valor Parcela': getCreditCardInstallmentValue(entry.paymentDetails) > 0 ? `R$ ${getCreditCardInstallmentValue(entry.paymentDetails).toFixed(2).replace('.', ',')}` : '',
+    'Cartão Débito': getPaymentByMethod(entry.paymentDetails, 'cartao_debito') > 0 ? `R$ ${getPaymentByMethod(entry.paymentDetails, 'cartao_debito').toFixed(2).replace('.', ',')}` : '',
     'Dinheiro': getPaymentByMethod(entry.paymentDetails, 'dinheiro') > 0 ? `R$ ${getPaymentByMethod(entry.paymentDetails, 'dinheiro').toFixed(2).replace('.', ',')}` : '',
     'Número NF': entry.invoiceNumber || '',
     'Observações': entry.observations || '',
@@ -64,6 +65,7 @@ export function exportToExcel(entries: FinancialEntry[], filename: string = 'ent
     { wch: 12 }, // Cartão
     { wch: 10 }, // Nº Parcelas
     { wch: 12 }, // Valor Parcela
+    { wch: 12 }, // Cartão Débito
     { wch: 12 }, // Dinheiro
     { wch: 12 }, // Número NF
     { wch: 20 }, // Observações
