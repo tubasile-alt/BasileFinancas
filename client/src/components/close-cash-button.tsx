@@ -35,6 +35,7 @@ export function CloseCashButton({ selectedDate }: CloseCashButtonProps) {
   // Get financial entries for printing
   const { data: entries } = useQuery<FinancialEntry[]>({
     queryKey: ["/api/financial-entries", selectedDate],
+    queryFn: () => fetch(`/api/financial-entries?date=${selectedDate}`).then(res => res.json()),
     enabled: !!selectedDate,
   });
 
@@ -82,7 +83,7 @@ export function CloseCashButton({ selectedDate }: CloseCashButtonProps) {
   };
 
   const handlePrint = () => {
-    if (!entries || !summary) return;
+    if (!summary) return;
 
     // Criar elementos para impressão de forma mais segura
     const getDoctorLabel = (doctorValue: string) => {
@@ -184,7 +185,7 @@ export function CloseCashButton({ selectedDate }: CloseCashButtonProps) {
       </tr>
     </thead>
     <tbody>
-      ${entries.map(entry => `
+      ${entries && entries.length > 0 ? entries.map(entry => `
         <tr>
           <td>${entry.patientCode}</td>
           <td class="patient-name">${entry.patientName}</td>
@@ -194,7 +195,11 @@ export function CloseCashButton({ selectedDate }: CloseCashButtonProps) {
           <td>${getPaymentMethodsText(entry.paymentDetails || [])}</td>
           <td style="text-align: center">${entry.invoiceNumber || '-'}</td>
         </tr>
-      `).join('')}
+      `).join('') : `
+        <tr>
+          <td colspan="7" style="text-align: center; padding: 20px;">Nenhuma entrada encontrada para este dia.</td>
+        </tr>
+      `}
     </tbody>
   </table>
   <div class="footer">
@@ -336,7 +341,7 @@ export function CloseCashButton({ selectedDate }: CloseCashButtonProps) {
               <Button
                 variant="outline"
                 onClick={handlePrint}
-                disabled={!entries || entries.length === 0}
+                disabled={!summary}
                 className="flex items-center"
                 data-testid="button-print"
               >
