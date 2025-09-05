@@ -24,8 +24,8 @@ export function DailySummary({ date }: DailySummaryProps) {
 
   if (!summary) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        {[...Array(5)].map((_, i) => (
+      <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+        {[...Array(7)].map((_, i) => (
           <Card key={i} className="p-4 animate-pulse">
             <div className="h-4 bg-muted rounded w-24 mb-2"></div>
             <div className="h-8 bg-muted rounded w-32"></div>
@@ -36,7 +36,13 @@ export function DailySummary({ date }: DailySummaryProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+      <Card className="p-4 border border-border bg-background">
+        <div className="text-xs text-muted-foreground uppercase tracking-wide">Data</div>
+        <div className="text-2xl font-semibold text-foreground" data-testid="text-date">
+          {new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+        </div>
+      </Card>
       <Card className="p-4 border border-border bg-background">
         <div className="text-xs text-muted-foreground uppercase tracking-wide">Total do Dia</div>
         <div className="text-2xl font-semibold text-foreground" data-testid="text-daily-total">
@@ -47,6 +53,12 @@ export function DailySummary({ date }: DailySummaryProps) {
         <div className="text-xs text-muted-foreground uppercase tracking-wide">PIX</div>
         <div className="text-2xl font-semibold text-foreground" data-testid="text-pix-total">
           {formatCurrency(summary.pixTotal)}
+        </div>
+      </Card>
+      <Card className="p-4 border border-border bg-background">
+        <div className="text-xs text-muted-foreground uppercase tracking-wide">Transferência</div>
+        <div className="text-2xl font-semibold text-foreground" data-testid="text-transfer-total">
+          {formatCurrency(summary.transferTotal)}
         </div>
       </Card>
       <Card className="p-4 border border-border bg-background">
