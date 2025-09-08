@@ -167,202 +167,153 @@ export default function MonthlyDashboard() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-          <Card className="p-4">
-            <div className="flex items-center space-x-2">
-              <DollarSign className="h-5 w-5 text-green-600" />
-              <div className="text-xs text-muted-foreground uppercase tracking-wide">Receita Total</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <Card className="p-6">
+            <div className="flex items-center space-x-3">
+              <DollarSign className="h-8 w-8 text-green-600" />
+              <div>
+                <div className="text-sm text-muted-foreground uppercase tracking-wide">Receita Total do Mês</div>
+                <div className="text-3xl font-bold text-green-600 mt-1" data-testid="text-monthly-total">
+                  {isLoadingReport ? "..." : formatCurrency(monthlyReport?.total || 0)}
+                </div>
+              </div>
             </div>
-            <div className="text-2xl font-semibold text-foreground mt-2" data-testid="text-monthly-total">
-              {isLoadingReport ? "..." : formatCurrency(monthlyReport?.total || 0)}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              Média: {isLoadingReport ? "..." : formatCurrency(monthlyReport?.averagePerDay || 0)}/dia
-            </div>
-          </Card>
-
-          <Card className="p-4">
-            <div className="flex items-center space-x-2">
-              <TrendingUp className="h-5 w-5 text-red-600" />
-              <div className="text-xs text-muted-foreground uppercase tracking-wide">Custos Totais</div>
-            </div>
-            <div className="text-2xl font-semibold text-foreground mt-2" data-testid="text-monthly-costs">
-              {isLoadingDoctor ? "..." : formatCurrency(
-                doctorReport?.reduce((sum, doctor) => sum + doctor.totalCosts, 0) || 0
-              )}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              Fixos + Procedimentos
+            <div className="text-sm text-muted-foreground mt-3">
+              Média diária: {isLoadingReport ? "..." : formatCurrency(monthlyReport?.averagePerDay || 0)}
             </div>
           </Card>
 
-          <Card className="p-4">
-            <div className="flex items-center space-x-2">
-              <DollarSign className="h-5 w-5 text-blue-600" />
-              <div className="text-xs text-muted-foreground uppercase tracking-wide">Lucro Líquido</div>
+          <Card className="p-6">
+            <div className="flex items-center space-x-3">
+              <Users className="h-8 w-8 text-blue-600" />
+              <div>
+                <div className="text-sm text-muted-foreground uppercase tracking-wide">Total de Atendimentos</div>
+                <div className="text-3xl font-bold text-blue-600 mt-1" data-testid="text-monthly-count">
+                  {isLoadingReport ? "..." : monthlyReport?.count || 0}
+                </div>
+              </div>
             </div>
-            <div className={`text-2xl font-semibold mt-2 ${
-              (!isLoadingReport && !isLoadingDoctor) && 
-              ((monthlyReport?.total || 0) - (doctorReport?.reduce((sum, doctor) => sum + doctor.totalCosts, 0) || 0)) >= 0 
-                ? 'text-blue-600' : 'text-red-600'
-            }`} data-testid="text-monthly-profit">
-              {(isLoadingReport || isLoadingDoctor) ? "..." : formatCurrency(
-                (monthlyReport?.total || 0) - (doctorReport?.reduce((sum, doctor) => sum + doctor.totalCosts, 0) || 0)
-              )}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              Receita - Custos
+            <div className="text-sm text-muted-foreground mt-3">
+              Procedimentos realizados no mês
             </div>
           </Card>
 
-          <Card className="p-4">
-            <div className="flex items-center space-x-2">
-              <Users className="h-5 w-5 text-purple-600" />
-              <div className="text-xs text-muted-foreground uppercase tracking-wide">Atendimentos</div>
+          <Card className="p-6">
+            <div className="flex items-center space-x-3">
+              <CreditCard className="h-8 w-8 text-purple-600" />
+              <div>
+                <div className="text-sm text-muted-foreground uppercase tracking-wide">Receita Cartão Crédito</div>
+                <div className="text-3xl font-bold text-purple-600 mt-1" data-testid="text-monthly-credit-card">
+                  {isLoadingReport ? "..." : formatCurrency(monthlyReport?.creditCardTotal || 0)}
+                </div>
+              </div>
             </div>
-            <div className="text-2xl font-semibold text-foreground mt-2" data-testid="text-monthly-count">
-              {isLoadingReport ? "..." : monthlyReport?.count || 0}
-            </div>
-          </Card>
-
-          <Card className="p-4">
-            <div className="flex items-center space-x-2">
-              <CreditCard className="h-5 w-5 text-orange-600" />
-              <div className="text-xs text-muted-foreground uppercase tracking-wide">PIX + Cartões</div>
-            </div>
-            <div className="text-2xl font-semibold text-foreground mt-2" data-testid="text-monthly-cards-pix">
-              {isLoadingReport ? "..." : formatCurrency(
-                (monthlyReport?.pixTotal || 0) + 
-                (monthlyReport?.creditCardTotal || 0) + 
-                (monthlyReport?.debitCardTotal || 0)
-              )}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              Pagamentos eletrônicos
+            <div className="text-sm text-muted-foreground mt-3">
+              Inclui taxa de 11%
             </div>
           </Card>
         </div>
 
-        {/* Charts and Tables Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Doctors Performance */}
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4 flex items-center">
-              <Users className="h-5 w-5 mr-2" />
-              Análise Financeira por Médico
-            </h3>
-            {isLoadingDoctor ? (
-              <div className="text-center py-8 text-muted-foreground">Carregando...</div>
-            ) : (
-              <div className="space-y-6">
-                {doctorReport?.map((doctor, index) => (
-                  <div key={index} className="border border-border rounded-lg p-4">
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="font-bold text-lg" data-testid={`doctor-name-${index}`}>
-                        {doctorLabels[doctor.doctor] || doctor.doctor}
-                      </span>
-                      <div className="text-right">
-                        <div className="text-lg font-semibold text-green-600" data-testid={`doctor-revenue-${index}`}>
-                          Receita: {formatCurrency(doctor.total)}
-                        </div>
-                        <div className={`text-lg font-semibold ${doctor.profit >= 0 ? 'text-blue-600' : 'text-red-600'}`} data-testid={`doctor-profit-${index}`}>
-                          Lucro: {formatCurrency(doctor.profit)}
-                        </div>
-                      </div>
+        {/* Cards por Médico */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
+          {isLoadingDoctor ? (
+            <div className="col-span-full text-center py-8 text-muted-foreground">Carregando dados dos médicos...</div>
+          ) : (
+            doctorReport?.map((doctor, index) => (
+              <Card key={index} className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    <Users className="h-6 w-6 text-blue-600" />
+                    <h3 className="text-xl font-bold" data-testid={`doctor-name-${index}`}>
+                      {doctorLabels[doctor.doctor] || doctor.doctor}
+                    </h3>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-green-600" data-testid={`doctor-revenue-${index}`}>
+                      {formatCurrency(doctor.total)}
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <div className="text-muted-foreground">Atendimentos:</div>
-                        <div className="font-medium">{doctor.count}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Procedimentos:</div>
-                        <div className="font-medium">{doctor.procedures.length} diferentes</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Custos Procedimentos:</div>
-                        <div className="font-medium text-orange-600" data-testid={`doctor-procedure-costs-${index}`}>
-                          {formatCurrency(doctor.procedureCosts)}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Custos Fixos:</div>
-                        <div className="font-medium text-red-600" data-testid={`doctor-fixed-costs-${index}`}>
-                          {formatCurrency(doctor.fixedCosts)}
-                        </div>
-                      </div>
+                    <div className="text-sm text-muted-foreground">Receita Total</div>
+                  </div>
+                </div>
+
+                <div className="mb-4 p-3 bg-muted rounded-lg">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <div className="text-muted-foreground">Atendimentos</div>
+                      <div className="font-semibold text-lg">{doctor.count}</div>
                     </div>
-                    
-                    <div className="mt-3 pt-3 border-t border-border">
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium">Custo Total Mensal:</span>
-                        <span className="font-semibold text-red-600" data-testid={`doctor-total-costs-${index}`}>
-                          {formatCurrency(doctor.totalCosts)}
-                        </span>
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Condomínio (R$ 6.000) + Centro Cirúrgico (R$ 1.500) + Custos de Procedimentos
-                      </div>
+                    <div>
+                      <div className="text-muted-foreground">Procedimentos</div>
+                      <div className="font-semibold text-lg">{doctor.procedures.length}</div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </Card>
+                </div>
 
-          {/* Payment Methods */}
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4 flex items-center">
-              <CreditCard className="h-5 w-5 mr-2" />
-              Métodos de Pagamento
-            </h3>
-            {isLoadingPayment ? (
-              <div className="text-center py-8 text-muted-foreground">Carregando...</div>
-            ) : (
-              <div className="space-y-4">
-                {paymentReport?.map((payment, index) => (
-                  <div key={index} className="border-b border-border pb-3 last:border-b-0">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="font-medium" data-testid={`payment-method-${index}`}>
-                        {paymentMethodLabels[payment.method] || payment.method}
-                      </span>
-                      <div className="text-right">
-                        <span className="text-lg font-semibold text-green-600" data-testid={`payment-total-${index}`}>
-                          {formatCurrency(payment.total)}
-                        </span>
-                        <div className="text-sm text-muted-foreground" data-testid={`payment-percentage-${index}`}>
-                          {formatPercentage(payment.percentage)}
+                <div>
+                  <h4 className="font-semibold mb-3 text-muted-foreground uppercase text-xs tracking-wide">
+                    Procedimentos Realizados
+                  </h4>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {doctor.procedures.map((procedure, procIndex) => (
+                      <div key={procIndex} className="flex justify-between items-center py-2 border-b border-border last:border-b-0">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate" title={procedure.procedure}>
+                            {procedure.procedure}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {procedure.count} {procedure.count === 1 ? 'vez' : 'vezes'}
+                          </div>
+                        </div>
+                        <div className="text-right ml-3">
+                          <div className="font-semibold text-green-600">
+                            {formatCurrency(procedure.total)}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {payment.count} transações
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </Card>
+                </div>
+              </Card>
+            ))
+          )}
         </div>
 
-        {/* Charts Section - Placeholder for future implementation */}
-        <div className="mt-6">
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4 flex items-center">
-              <TrendingUp className="h-5 w-5 mr-2" />
-              Gráficos de Análise (Em Desenvolvimento)
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="h-64 bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
-                Evolução Mensal por Médico
-              </div>
-              <div className="h-64 bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
-                Distribuição Métodos de Pagamento
-              </div>
+        {/* Métodos de Pagamento */}
+        <Card className="p-6">
+          <h3 className="text-xl font-semibold mb-6 flex items-center">
+            <CreditCard className="h-6 w-6 mr-3" />
+            Distribuição por Método de Pagamento
+          </h3>
+          {isLoadingPayment ? (
+            <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {paymentReport?.map((payment, index) => (
+                <div key={index} className="p-4 border border-border rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-semibold text-lg" data-testid={`payment-method-${index}`}>
+                      {paymentMethodLabels[payment.method] || payment.method}
+                    </span>
+                    <span className="text-sm text-muted-foreground" data-testid={`payment-percentage-${index}`}>
+                      {formatPercentage(payment.percentage)}
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold text-green-600 mb-1" data-testid={`payment-total-${index}`}>
+                    {formatCurrency(payment.total)}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {payment.count} transações
+                    {payment.method === 'cartao_credito' && (
+                      <span className="block text-xs text-purple-600 mt-1">
+                        (Inclui taxa de 11%)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
-          </Card>
-        </div>
+          )}
+        </Card>
       </main>
     </div>
   );
