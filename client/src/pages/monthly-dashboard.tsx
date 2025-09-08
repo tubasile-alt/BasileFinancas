@@ -27,6 +27,8 @@ interface DoctorReportData {
   fixedCosts: number;
   totalCosts: number;
   profit: number;
+  cardTotal: number;
+  nfTotal: number;
 }
 
 interface PaymentMethodReportData {
@@ -234,18 +236,34 @@ export default function MonthlyDashboard() {
                       {formatCurrency(doctor.total)}
                     </div>
                     <div className="text-sm text-muted-foreground">Receita Total</div>
+                    <div className="text-sm text-blue-600 mt-1">
+                      Cartão: {formatCurrency(doctor.cardTotal)}
+                    </div>
+                    <div className="text-sm text-purple-600">
+                      Com NF: {formatCurrency(doctor.nfTotal)}
+                    </div>
                   </div>
                 </div>
 
-                <div className="mb-4 p-3 bg-muted rounded-lg">
+                <div className="mb-4 p-3 bg-muted rounded-lg space-y-3">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <div className="text-muted-foreground">Custos Totais</div>
-                      <div className="font-semibold text-lg text-red-600">{formatCurrency(doctor.procedureCosts + MONTHLY_FIXED_COSTS.total)}</div>
+                      <div className="text-muted-foreground">Custos Procedimentos</div>
+                      <div className="font-semibold text-lg text-red-600">{formatCurrency(doctor.procedureCosts)}</div>
                     </div>
                     <div>
                       <div className="text-muted-foreground">Procedimentos</div>
                       <div className="font-semibold text-lg">{doctor.procedures.length}</div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm border-t pt-3">
+                    <div>
+                      <div className="text-muted-foreground">Condomínio</div>
+                      <div className="font-semibold text-red-600">{formatCurrency(MONTHLY_FIXED_COSTS.condominio)}</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Centro Cirúrgico</div>
+                      <div className="font-semibold text-red-600">{formatCurrency(MONTHLY_FIXED_COSTS.centro_cirurgico)}</div>
                     </div>
                   </div>
                 </div>

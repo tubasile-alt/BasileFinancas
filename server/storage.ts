@@ -222,16 +222,26 @@ export class MemStorage implements IStorage {
     fixedCosts: number;
     totalCosts: number;
     profit: number;
+    cardTotal: number;
+    nfTotal: number;
   }>> {
     const entries = this.getMonthlyEntries(year, month);
-    const doctorMap = new Map<string, { total: number; count: number; procedures: Map<string, { count: number; total: number; }> }>();
+    const doctorMap = new Map<string, { 
+      total: number; 
+      count: number; 
+      procedures: Map<string, { count: number; total: number; }>; 
+      cardTotal: number;
+      nfTotal: number;
+    }>();
 
     for (const entry of entries) {
       if (!doctorMap.has(entry.doctor)) {
         doctorMap.set(entry.doctor, { 
           total: 0, 
           count: 0, 
-          procedures: new Map() 
+          procedures: new Map(),
+          cardTotal: 0,
+          nfTotal: 0
         });
       }
 
@@ -244,7 +254,24 @@ export class MemStorage implements IStorage {
           const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
           return sum + value;
         }, 0);
+        
+        // Calcular total de cartões (crédito e débito)
+        const cardTotal = entry.paymentDetails.reduce((sum, payment) => {
+          if (payment.method === 'cartao_credito' || payment.method === 'cartao_debito') {
+            const baseValue = payment.value || 0;
+            const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
+            return sum + value;
+          }
+          return sum;
+        }, 0);
+        
         doctorData.total += entryTotal;
+        doctorData.cardTotal += cardTotal;
+        
+        // Se a entrada tem número de NF, adicionar ao total de NF
+        if (entry.invoiceNumber && entry.invoiceNumber.trim()) {
+          doctorData.nfTotal += entryTotal;
+        }
 
         if (!doctorData.procedures.has(entry.procedure)) {
           doctorData.procedures.set(entry.procedure, { count: 0, total: 0 });
@@ -277,7 +304,9 @@ export class MemStorage implements IStorage {
         procedureCosts,
         fixedCosts,
         totalCosts,
-        profit
+        profit,
+        cardTotal: data.cardTotal,
+        nfTotal: data.nfTotal
       };
     });
   }
@@ -549,16 +578,26 @@ export class DatabaseStorage implements IStorage {
     fixedCosts: number;
     totalCosts: number;
     profit: number;
+    cardTotal: number;
+    nfTotal: number;
   }>> {
     const entries = await this.getMonthlyEntries(year, month);
-    const doctorMap = new Map<string, { total: number; count: number; procedures: Map<string, { count: number; total: number; }> }>();
+    const doctorMap = new Map<string, { 
+      total: number; 
+      count: number; 
+      procedures: Map<string, { count: number; total: number; }>; 
+      cardTotal: number;
+      nfTotal: number;
+    }>();
 
     for (const entry of entries) {
       if (!doctorMap.has(entry.doctor)) {
         doctorMap.set(entry.doctor, { 
           total: 0, 
           count: 0, 
-          procedures: new Map() 
+          procedures: new Map(),
+          cardTotal: 0,
+          nfTotal: 0
         });
       }
 
@@ -571,7 +610,24 @@ export class DatabaseStorage implements IStorage {
           const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
           return sum + value;
         }, 0);
+        
+        // Calcular total de cartões (crédito e débito)
+        const cardTotal = entry.paymentDetails.reduce((sum, payment) => {
+          if (payment.method === 'cartao_credito' || payment.method === 'cartao_debito') {
+            const baseValue = payment.value || 0;
+            const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
+            return sum + value;
+          }
+          return sum;
+        }, 0);
+        
         doctorData.total += entryTotal;
+        doctorData.cardTotal += cardTotal;
+        
+        // Se a entrada tem número de NF, adicionar ao total de NF
+        if (entry.invoiceNumber && entry.invoiceNumber.trim()) {
+          doctorData.nfTotal += entryTotal;
+        }
 
         if (!doctorData.procedures.has(entry.procedure)) {
           doctorData.procedures.set(entry.procedure, { count: 0, total: 0 });
@@ -604,7 +660,9 @@ export class DatabaseStorage implements IStorage {
         procedureCosts,
         fixedCosts,
         totalCosts,
-        profit
+        profit,
+        cardTotal: data.cardTotal,
+        nfTotal: data.nfTotal
       };
     });
   }
