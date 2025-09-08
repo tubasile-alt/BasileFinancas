@@ -252,8 +252,10 @@ export default function MonthlyDashboard() {
                       <div className="font-semibold text-lg text-red-600">{formatCurrency(doctor.procedureCosts)}</div>
                     </div>
                     <div>
-                      <div className="text-muted-foreground">Procedimentos</div>
-                      <div className="font-semibold text-lg">{doctor.procedures.length}</div>
+                      <div className="text-muted-foreground">Taxa 11%</div>
+                      <div className="font-semibold text-lg text-orange-600">
+                        {formatCurrency(Math.max(doctor.cardTotal, doctor.nfTotal) * 0.11)}
+                      </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4 text-sm border-t pt-3">
