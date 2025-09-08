@@ -3,6 +3,8 @@ import { FinancialEntryForm } from "@/components/financial-entry-form";
 import { EntriesTable } from "@/components/entries-table";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Hospital } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
 
 export default function Dashboard() {
   const [selectedDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -26,6 +28,11 @@ export default function Dashboard() {
                   day: 'numeric' 
                 })}
               </span>
+              <Link href="/monthly">
+                <Button variant="outline" size="sm" className="bg-primary-foreground text-primary hover:bg-primary-foreground/90">
+                  Dashboard Mensal
+                </Button>
+              </Link>
               <div className="bg-primary-foreground/10 hover:bg-primary-foreground/20 px-3 py-2 rounded-md text-sm font-medium transition-colors">
                 <span data-testid="text-current-user">Sistema Clínica</span>
               </div>
