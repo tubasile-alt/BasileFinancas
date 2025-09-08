@@ -1,6 +1,6 @@
 import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, type DailyClosure, type InsertDailyClosure, users, financialEntries, dailyClosure } from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, gte, lte } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -22,6 +22,31 @@ export interface IStorage {
     transferTotal: number;
     count: number;
   }>;
+  
+  getMonthlyReport(year: number, month: number): Promise<{
+    total: number;
+    pixTotal: number;
+    creditCardTotal: number;
+    debitCardTotal: number;
+    cashTotal: number;
+    transferTotal: number;
+    count: number;
+    averagePerDay: number;
+  }>;
+  
+  getMonthlyReportByDoctor(year: number, month: number): Promise<Array<{
+    doctor: string;
+    total: number;
+    count: number;
+    procedures: Array<{ procedure: string; count: number; total: number; }>;
+  }>>;
+  
+  getMonthlyReportByPaymentMethod(year: number, month: number): Promise<Array<{
+    method: string;
+    total: number;
+    count: number;
+    percentage: number;
+  }>>;
   
   createDailyClosure(closure: InsertDailyClosure): Promise<DailyClosure>;
   getDailyClosure(date: string): Promise<DailyClosure | undefined>;
@@ -160,6 +185,172 @@ export class MemStorage implements IStorage {
   async getDailyClosure(date: string): Promise<DailyClosure | undefined> {
     throw new Error("MemStorage does not support daily closures");
   }
+
+  async getMonthlyReport(year: number, month: number): Promise<{
+    total: number;
+    pixTotal: number;
+    creditCardTotal: number;
+    debitCardTotal: number;
+    cashTotal: number;
+    transferTotal: number;
+    count: number;
+    averagePerDay: number;
+  }> {
+    const entries = this.getMonthlyEntries(year, month);
+    const summary = this.calculateSummaryFromEntries(entries);
+    const daysInMonth = new Date(year, month, 0).getDate();
+    
+    return {
+      ...summary,
+      averagePerDay: summary.total / daysInMonth
+    };
+  }
+
+  async getMonthlyReportByDoctor(year: number, month: number): Promise<Array<{
+    doctor: string;
+    total: number;
+    count: number;
+    procedures: Array<{ procedure: string; count: number; total: number; }>;
+  }>> {
+    const entries = this.getMonthlyEntries(year, month);
+    const doctorMap = new Map<string, { total: number; count: number; procedures: Map<string, { count: number; total: number; }> }>();
+
+    for (const entry of entries) {
+      if (!doctorMap.has(entry.doctor)) {
+        doctorMap.set(entry.doctor, { 
+          total: 0, 
+          count: 0, 
+          procedures: new Map() 
+        });
+      }
+
+      const doctorData = doctorMap.get(entry.doctor)!;
+      doctorData.count++;
+
+      if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
+        const entryTotal = entry.paymentDetails.reduce((sum, payment) => sum + (payment.value || 0), 0);
+        doctorData.total += entryTotal;
+
+        if (!doctorData.procedures.has(entry.procedure)) {
+          doctorData.procedures.set(entry.procedure, { count: 0, total: 0 });
+        }
+        
+        const procedureData = doctorData.procedures.get(entry.procedure)!;
+        procedureData.count++;
+        procedureData.total += entryTotal;
+      }
+    }
+
+    return Array.from(doctorMap.entries()).map(([doctor, data]) => ({
+      doctor,
+      total: data.total,
+      count: data.count,
+      procedures: Array.from(data.procedures.entries()).map(([procedure, procData]) => ({
+        procedure,
+        count: procData.count,
+        total: procData.total
+      }))
+    }));
+  }
+
+  async getMonthlyReportByPaymentMethod(year: number, month: number): Promise<Array<{
+    method: string;
+    total: number;
+    count: number;
+    percentage: number;
+  }>> {
+    const entries = this.getMonthlyEntries(year, month);
+    const methodMap = new Map<string, { total: number; count: number }>();
+    let grandTotal = 0;
+
+    for (const entry of entries) {
+      if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
+        for (const payment of entry.paymentDetails) {
+          const value = payment.value || 0;
+          grandTotal += value;
+
+          if (!methodMap.has(payment.method)) {
+            methodMap.set(payment.method, { total: 0, count: 0 });
+          }
+
+          const methodData = methodMap.get(payment.method)!;
+          methodData.total += value;
+          methodData.count++;
+        }
+      }
+    }
+
+    return Array.from(methodMap.entries()).map(([method, data]) => ({
+      method,
+      total: data.total,
+      count: data.count,
+      percentage: grandTotal > 0 ? (data.total / grandTotal) * 100 : 0
+    }));
+  }
+
+  private getMonthlyEntries(year: number, month: number): FinancialEntry[] {
+    const entries = Array.from(this.financialEntries.values());
+    const paddedMonth = month.toString().padStart(2, '0');
+    
+    return entries.filter(entry => {
+      const entryDate = new Date(entry.entryDate);
+      return entryDate.getFullYear() === year && entryDate.getMonth() + 1 === month;
+    });
+  }
+
+  private calculateSummaryFromEntries(entries: FinancialEntry[]): {
+    total: number;
+    pixTotal: number;
+    creditCardTotal: number;
+    debitCardTotal: number;
+    cashTotal: number;
+    transferTotal: number;
+    count: number;
+  } {
+    let total = 0;
+    let pixTotal = 0;
+    let creditCardTotal = 0;
+    let debitCardTotal = 0;
+    let cashTotal = 0;
+    let transferTotal = 0;
+    
+    for (const entry of entries) {
+      if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
+        for (const payment of entry.paymentDetails) {
+          const value = payment.value || 0;
+          total += value;
+          
+          switch (payment.method) {
+            case 'pix':
+              pixTotal += value;
+              break;
+            case 'cartao_credito':
+              creditCardTotal += value;
+              break;
+            case 'cartao_debito':
+              debitCardTotal += value;
+              break;
+            case 'dinheiro':
+              cashTotal += value;
+              break;
+            case 'transferencia':
+              transferTotal += value;
+              break;
+          }
+        }
+      }
+    }
+    
+    return {
+      total,
+      pixTotal,
+      creditCardTotal,
+      debitCardTotal,
+      cashTotal,
+      transferTotal,
+      count: entries.length
+    };
+  }
 }
 
 export class DatabaseStorage implements IStorage {
@@ -293,6 +484,175 @@ export class DatabaseStorage implements IStorage {
   async getDailyClosure(date: string): Promise<DailyClosure | undefined> {
     const [closure] = await db.select().from(dailyClosure).where(eq(dailyClosure.date, date));
     return closure || undefined;
+  }
+
+  async getMonthlyReport(year: number, month: number): Promise<{
+    total: number;
+    pixTotal: number;
+    creditCardTotal: number;
+    debitCardTotal: number;
+    cashTotal: number;
+    transferTotal: number;
+    count: number;
+    averagePerDay: number;
+  }> {
+    const entries = await this.getMonthlyEntries(year, month);
+    const summary = this.calculateSummaryFromEntries(entries);
+    const daysInMonth = new Date(year, month, 0).getDate();
+    
+    return {
+      ...summary,
+      averagePerDay: summary.total / daysInMonth
+    };
+  }
+
+  async getMonthlyReportByDoctor(year: number, month: number): Promise<Array<{
+    doctor: string;
+    total: number;
+    count: number;
+    procedures: Array<{ procedure: string; count: number; total: number; }>;
+  }>> {
+    const entries = await this.getMonthlyEntries(year, month);
+    const doctorMap = new Map<string, { total: number; count: number; procedures: Map<string, { count: number; total: number; }> }>();
+
+    for (const entry of entries) {
+      if (!doctorMap.has(entry.doctor)) {
+        doctorMap.set(entry.doctor, { 
+          total: 0, 
+          count: 0, 
+          procedures: new Map() 
+        });
+      }
+
+      const doctorData = doctorMap.get(entry.doctor)!;
+      doctorData.count++;
+
+      if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
+        const entryTotal = entry.paymentDetails.reduce((sum, payment) => sum + (payment.value || 0), 0);
+        doctorData.total += entryTotal;
+
+        if (!doctorData.procedures.has(entry.procedure)) {
+          doctorData.procedures.set(entry.procedure, { count: 0, total: 0 });
+        }
+        
+        const procedureData = doctorData.procedures.get(entry.procedure)!;
+        procedureData.count++;
+        procedureData.total += entryTotal;
+      }
+    }
+
+    return Array.from(doctorMap.entries()).map(([doctor, data]) => ({
+      doctor,
+      total: data.total,
+      count: data.count,
+      procedures: Array.from(data.procedures.entries()).map(([procedure, procData]) => ({
+        procedure,
+        count: procData.count,
+        total: procData.total
+      }))
+    }));
+  }
+
+  async getMonthlyReportByPaymentMethod(year: number, month: number): Promise<Array<{
+    method: string;
+    total: number;
+    count: number;
+    percentage: number;
+  }>> {
+    const entries = await this.getMonthlyEntries(year, month);
+    const methodMap = new Map<string, { total: number; count: number }>();
+    let grandTotal = 0;
+
+    for (const entry of entries) {
+      if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
+        for (const payment of entry.paymentDetails) {
+          const value = payment.value || 0;
+          grandTotal += value;
+
+          if (!methodMap.has(payment.method)) {
+            methodMap.set(payment.method, { total: 0, count: 0 });
+          }
+
+          const methodData = methodMap.get(payment.method)!;
+          methodData.total += value;
+          methodData.count++;
+        }
+      }
+    }
+
+    return Array.from(methodMap.entries()).map(([method, data]) => ({
+      method,
+      total: data.total,
+      count: data.count,
+      percentage: grandTotal > 0 ? (data.total / grandTotal) * 100 : 0
+    }));
+  }
+
+  private async getMonthlyEntries(year: number, month: number): Promise<FinancialEntry[]> {
+    const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
+    const endDate = `${year}-${month.toString().padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
+    
+    const entries = await db.select().from(financialEntries)
+      .where(and(
+        gte(financialEntries.entryDate, startDate),
+        lte(financialEntries.entryDate, endDate)
+      ));
+    
+    return entries;
+  }
+
+  private calculateSummaryFromEntries(entries: FinancialEntry[]): {
+    total: number;
+    pixTotal: number;
+    creditCardTotal: number;
+    debitCardTotal: number;
+    cashTotal: number;
+    transferTotal: number;
+    count: number;
+  } {
+    let total = 0;
+    let pixTotal = 0;
+    let creditCardTotal = 0;
+    let debitCardTotal = 0;
+    let cashTotal = 0;
+    let transferTotal = 0;
+    
+    for (const entry of entries) {
+      if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
+        for (const payment of entry.paymentDetails) {
+          const value = payment.value || 0;
+          total += value;
+          
+          switch (payment.method) {
+            case 'pix':
+              pixTotal += value;
+              break;
+            case 'cartao_credito':
+              creditCardTotal += value;
+              break;
+            case 'cartao_debito':
+              debitCardTotal += value;
+              break;
+            case 'dinheiro':
+              cashTotal += value;
+              break;
+            case 'transferencia':
+              transferTotal += value;
+              break;
+          }
+        }
+      }
+    }
+    
+    return {
+      total,
+      pixTotal,
+      creditCardTotal,
+      debitCardTotal,
+      cashTotal,
+      transferTotal,
+      count: entries.length
+    };
   }
 }
 

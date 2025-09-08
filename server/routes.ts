@@ -122,6 +122,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Monthly reports endpoints
+  app.get("/api/monthly-report/:year/:month", async (req, res) => {
+    try {
+      const year = parseInt(req.params.year);
+      const month = parseInt(req.params.month);
+      
+      if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
+        return res.status(400).json({ message: "Invalid year or month parameter" });
+      }
+
+      const report = await storage.getMonthlyReport(year, month);
+      res.json(report);
+    } catch (error) {
+      console.error("Error fetching monthly report:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/monthly-report-by-doctor/:year/:month", async (req, res) => {
+    try {
+      const year = parseInt(req.params.year);
+      const month = parseInt(req.params.month);
+      
+      if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
+        return res.status(400).json({ message: "Invalid year or month parameter" });
+      }
+
+      const report = await storage.getMonthlyReportByDoctor(year, month);
+      res.json(report);
+    } catch (error) {
+      console.error("Error fetching monthly report by doctor:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/monthly-report-by-payment/:year/:month", async (req, res) => {
+    try {
+      const year = parseInt(req.params.year);
+      const month = parseInt(req.params.month);
+      
+      if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
+        return res.status(400).json({ message: "Invalid year or month parameter" });
+      }
+
+      const report = await storage.getMonthlyReportByPaymentMethod(year, month);
+      res.json(report);
+    } catch (error) {
+      console.error("Error fetching monthly report by payment method:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
