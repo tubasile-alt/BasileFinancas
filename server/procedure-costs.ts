@@ -74,6 +74,51 @@ export const procedureCostsByDoctor: Record<string, ProcedureCostData[]> = {
   'icb-transplante': [
     { name: 'Transplante Capilar', cost: 2000 }, // R$ 2.000 por transplante
     { name: 'Body Hair', cost: 2000 } // R$ 2.000 por procedimento
+  ],
+  // Dermatologia - custos específicos
+  'dermatologia': [
+    { name: 'botox pequeno', cost: 200 },
+    { name: 'botox médio', cost: 350 },
+    { name: 'botox axila', cost: 530 },
+    { name: 'preenchimento', cost: 380 },
+    { name: 'botox pequeno + preenchimento', cost: 630 },
+    { name: 'botox médio + preenchimento', cost: 780 },
+    { name: 'consulta', cost: 0 },
+    { name: 'limelight', cost: 0 },
+    { name: 'Pearl fracionado', cost: 0 },
+    { name: 'Laser cicatriz', cost: 0 },
+    { name: 'Genesis', cost: 0 },
+    { name: 'pequena cirurgia', cost: 150 },
+    { name: 'PCT depilação', cost: 50 },
+    { name: '1 DEPILAÇÃO', cost: 0 },
+    { name: 'MORPHEUS 1 AREA', cost: 50 },
+    { name: 'biópsia', cost: 50 },
+    { name: 'EMSCULPTING neo', cost: 0 },
+    { name: 'radiesse', cost: 650 },
+    { name: 'voluma', cost: 430 },
+    { name: 'corticóide', cost: 0 },
+    { name: 'peeling', cost: 50 },
+    { name: 'PACOTE ESTRIA', cost: 100 },
+    { name: 'LASER CAPILAR', cost: 0 },
+    { name: 'MORPHEUS 2 AREAS', cost: 0 },
+    { name: 'pacote peeling', cost: 100 },
+    { name: 'sedação', cost: 0 },
+    { name: 'PEARL-ARTHUR', cost: 0 },
+    { name: 'PEARL-FILIPE', cost: 0 },
+    { name: 'PEARL- BASILE', cost: 0 },
+    { name: 'PEARL-VINICIUS', cost: 0 },
+    { name: 'INFILTRAÇÃO CORTICOIDE', cost: 50 },
+    { name: 'PIAGLIS-PEQUENO', cost: 40 },
+    { name: 'PIAGLIS -INTEIRO', cost: 100 },
+    { name: 'MICROAGULHAMENTO', cost: 0 },
+    { name: 'INFILTRAÇÃO CABELO', cost: 0 },
+    { name: 'ULTHERA', cost: 0 },
+    { name: 'SCULPTRA', cost: 900 },
+    { name: 'SILHOUETTE', cost: 2000 },
+    { name: 'EXILIS FACE/OLHOS/PESCOÇO', cost: 0 },
+    { name: 'EXILIS CORPO', cost: 0 },
+    { name: 'COOLSCUPTING', cost: 0 },
+    { name: 'ENTONE', cost: 0 }
   ]
 };
 
