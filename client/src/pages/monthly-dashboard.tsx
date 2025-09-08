@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Hospital, TrendingUp, Users, DollarSign, Calendar, CreditCard } from "lucide-react";
 import { Link } from "wouter";
+import { getProcedureCost, MONTHLY_FIXED_COSTS } from "@/lib/procedure-costs";
 
 interface MonthlyReportData {
   total: number;
@@ -239,8 +240,8 @@ export default function MonthlyDashboard() {
                 <div className="mb-4 p-3 bg-muted rounded-lg">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <div className="text-muted-foreground">Atendimentos</div>
-                      <div className="font-semibold text-lg">{doctor.count}</div>
+                      <div className="text-muted-foreground">Custos Totais</div>
+                      <div className="font-semibold text-lg text-red-600">{formatCurrency(doctor.procedureCosts + MONTHLY_FIXED_COSTS.total)}</div>
                     </div>
                     <div>
                       <div className="text-muted-foreground">Procedimentos</div>
@@ -254,23 +255,30 @@ export default function MonthlyDashboard() {
                     Procedimentos Realizados
                   </h4>
                   <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {doctor.procedures.map((procedure, procIndex) => (
-                      <div key={procIndex} className="flex justify-between items-center py-2 border-b border-border last:border-b-0">
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm truncate" title={procedure.procedure}>
-                            {procedure.procedure}
+                    {doctor.procedures.map((procedure, procIndex) => {
+                      const procedureCost = getProcedureCost(doctor.doctor, procedure.procedure);
+                      const totalCostForProcedure = procedureCost * procedure.count;
+                      return (
+                        <div key={procIndex} className="flex justify-between items-center py-2 border-b border-border last:border-b-0">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm truncate" title={procedure.procedure}>
+                              {procedure.procedure}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {procedure.count} {procedure.count === 1 ? 'vez' : 'vezes'} • Custo: {formatCurrency(procedureCost)} cada
+                            </div>
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {procedure.count} {procedure.count === 1 ? 'vez' : 'vezes'}
+                          <div className="text-right ml-3">
+                            <div className="font-semibold text-green-600 mb-1">
+                              {formatCurrency(procedure.total)}
+                            </div>
+                            <div className="text-xs text-red-600">
+                              Custo: {formatCurrency(totalCostForProcedure)}
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right ml-3">
-                          <div className="font-semibold text-green-600">
-                            {formatCurrency(procedure.total)}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </Card>
