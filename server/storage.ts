@@ -148,7 +148,9 @@ export class MemStorage implements IStorage {
     for (const entry of entries) {
       if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
         for (const payment of entry.paymentDetails) {
-          const value = payment.value || 0;
+          const baseValue = payment.value || 0;
+          // Adicionar taxa de 11% para cartão de crédito
+          const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
           total += value;
           
           switch (payment.method) {
@@ -237,7 +239,11 @@ export class MemStorage implements IStorage {
       doctorData.count++;
 
       if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
-        const entryTotal = entry.paymentDetails.reduce((sum, payment) => sum + (payment.value || 0), 0);
+        const entryTotal = entry.paymentDetails.reduce((sum, payment) => {
+          const baseValue = payment.value || 0;
+          const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
+          return sum + value;
+        }, 0);
         doctorData.total += entryTotal;
 
         if (!doctorData.procedures.has(entry.procedure)) {
@@ -289,7 +295,8 @@ export class MemStorage implements IStorage {
     for (const entry of entries) {
       if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
         for (const payment of entry.paymentDetails) {
-          const value = payment.value || 0;
+          const baseValue = payment.value || 0;
+          const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
           grandTotal += value;
 
           if (!methodMap.has(payment.method)) {
@@ -340,7 +347,9 @@ export class MemStorage implements IStorage {
     for (const entry of entries) {
       if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
         for (const payment of entry.paymentDetails) {
-          const value = payment.value || 0;
+          const baseValue = payment.value || 0;
+          // Adicionar taxa de 11% para cartão de crédito
+          const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
           total += value;
           
           switch (payment.method) {
@@ -461,7 +470,9 @@ export class DatabaseStorage implements IStorage {
     for (const entry of entries) {
       if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
         for (const payment of entry.paymentDetails) {
-          const value = payment.value || 0;
+          const baseValue = payment.value || 0;
+          // Adicionar taxa de 11% para cartão de crédito
+          const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
           total += value;
           
           switch (payment.method) {
@@ -555,7 +566,11 @@ export class DatabaseStorage implements IStorage {
       doctorData.count++;
 
       if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
-        const entryTotal = entry.paymentDetails.reduce((sum, payment) => sum + (payment.value || 0), 0);
+        const entryTotal = entry.paymentDetails.reduce((sum, payment) => {
+          const baseValue = payment.value || 0;
+          const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
+          return sum + value;
+        }, 0);
         doctorData.total += entryTotal;
 
         if (!doctorData.procedures.has(entry.procedure)) {
@@ -607,7 +622,8 @@ export class DatabaseStorage implements IStorage {
     for (const entry of entries) {
       if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
         for (const payment of entry.paymentDetails) {
-          const value = payment.value || 0;
+          const baseValue = payment.value || 0;
+          const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
           grandTotal += value;
 
           if (!methodMap.has(payment.method)) {
@@ -661,7 +677,9 @@ export class DatabaseStorage implements IStorage {
     for (const entry of entries) {
       if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
         for (const payment of entry.paymentDetails) {
-          const value = payment.value || 0;
+          const baseValue = payment.value || 0;
+          // Adicionar taxa de 11% para cartão de crédito
+          const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
           total += value;
           
           switch (payment.method) {

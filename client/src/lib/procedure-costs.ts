@@ -68,10 +68,10 @@ export const procedureCostsByDoctor: Record<string, ProcedureCostData[]> = {
     { name: 'MADAH', cost: 0 },
     { name: 'FITA SILICONE', cost: 0 }
   ],
-  // ICB Transplante pode ter custos diferentes ou não ter custos de procedimentos
+  // ICB Transplante - custos específicos
   'icb-transplante': [
-    { name: 'Transplante Capilar', cost: 0 }, // Definir custo específico se necessário
-    { name: 'Body Hair', cost: 0 }
+    { name: 'Transplante Capilar', cost: 2000 }, // R$ 2.000 por transplante
+    { name: 'Body Hair', cost: 2000 } // R$ 2.000 por procedimento
   ]
 };
 
