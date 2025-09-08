@@ -2,6 +2,7 @@ import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEn
 import { db } from "./db";
 import { eq, and, gte, lte } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { calculateProcedureCosts, MONTHLY_FIXED_COSTS } from "./procedure-costs";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -39,6 +40,10 @@ export interface IStorage {
     total: number;
     count: number;
     procedures: Array<{ procedure: string; count: number; total: number; }>;
+    procedureCosts: number;
+    fixedCosts: number;
+    totalCosts: number;
+    profit: number;
   }>>;
   
   getMonthlyReportByPaymentMethod(year: number, month: number): Promise<Array<{
@@ -211,6 +216,10 @@ export class MemStorage implements IStorage {
     total: number;
     count: number;
     procedures: Array<{ procedure: string; count: number; total: number; }>;
+    procedureCosts: number;
+    fixedCosts: number;
+    totalCosts: number;
+    profit: number;
   }>> {
     const entries = this.getMonthlyEntries(year, month);
     const doctorMap = new Map<string, { total: number; count: number; procedures: Map<string, { count: number; total: number; }> }>();
@@ -241,16 +250,30 @@ export class MemStorage implements IStorage {
       }
     }
 
-    return Array.from(doctorMap.entries()).map(([doctor, data]) => ({
-      doctor,
-      total: data.total,
-      count: data.count,
-      procedures: Array.from(data.procedures.entries()).map(([procedure, procData]) => ({
+    return Array.from(doctorMap.entries()).map(([doctor, data]) => {
+      const procedures = Array.from(data.procedures.entries()).map(([procedure, procData]) => ({
         procedure,
         count: procData.count,
         total: procData.total
-      }))
-    }));
+      }));
+
+      // Calcular custos dos procedimentos
+      const procedureCosts = calculateProcedureCosts(procedures, doctor);
+      const fixedCosts = MONTHLY_FIXED_COSTS.total;
+      const totalCosts = procedureCosts + fixedCosts;
+      const profit = data.total - totalCosts;
+
+      return {
+        doctor,
+        total: data.total,
+        count: data.count,
+        procedures,
+        procedureCosts,
+        fixedCosts,
+        totalCosts,
+        profit
+      };
+    });
   }
 
   async getMonthlyReportByPaymentMethod(year: number, month: number): Promise<Array<{
@@ -511,6 +534,10 @@ export class DatabaseStorage implements IStorage {
     total: number;
     count: number;
     procedures: Array<{ procedure: string; count: number; total: number; }>;
+    procedureCosts: number;
+    fixedCosts: number;
+    totalCosts: number;
+    profit: number;
   }>> {
     const entries = await this.getMonthlyEntries(year, month);
     const doctorMap = new Map<string, { total: number; count: number; procedures: Map<string, { count: number; total: number; }> }>();
@@ -541,16 +568,30 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    return Array.from(doctorMap.entries()).map(([doctor, data]) => ({
-      doctor,
-      total: data.total,
-      count: data.count,
-      procedures: Array.from(data.procedures.entries()).map(([procedure, procData]) => ({
+    return Array.from(doctorMap.entries()).map(([doctor, data]) => {
+      const procedures = Array.from(data.procedures.entries()).map(([procedure, procData]) => ({
         procedure,
         count: procData.count,
         total: procData.total
-      }))
-    }));
+      }));
+
+      // Calcular custos dos procedimentos
+      const procedureCosts = calculateProcedureCosts(procedures, doctor);
+      const fixedCosts = MONTHLY_FIXED_COSTS.total;
+      const totalCosts = procedureCosts + fixedCosts;
+      const profit = data.total - totalCosts;
+
+      return {
+        doctor,
+        total: data.total,
+        count: data.count,
+        procedures,
+        procedureCosts,
+        fixedCosts,
+        totalCosts,
+        profit
+      };
+    });
   }
 
   async getMonthlyReportByPaymentMethod(year: number, month: number): Promise<Array<{

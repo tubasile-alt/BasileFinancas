@@ -22,6 +22,10 @@ interface DoctorReportData {
   total: number;
   count: number;
   procedures: Array<{ procedure: string; count: number; total: number; }>;
+  procedureCosts: number;
+  fixedCosts: number;
+  totalCosts: number;
+  profit: number;
 }
 
 interface PaymentMethodReportData {
@@ -163,11 +167,11 @@ export default function MonthlyDashboard() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
           <Card className="p-4">
             <div className="flex items-center space-x-2">
               <DollarSign className="h-5 w-5 text-green-600" />
-              <div className="text-xs text-muted-foreground uppercase tracking-wide">Total do Mês</div>
+              <div className="text-xs text-muted-foreground uppercase tracking-wide">Receita Total</div>
             </div>
             <div className="text-2xl font-semibold text-foreground mt-2" data-testid="text-monthly-total">
               {isLoadingReport ? "..." : formatCurrency(monthlyReport?.total || 0)}
@@ -179,7 +183,41 @@ export default function MonthlyDashboard() {
 
           <Card className="p-4">
             <div className="flex items-center space-x-2">
-              <Users className="h-5 w-5 text-blue-600" />
+              <TrendingUp className="h-5 w-5 text-red-600" />
+              <div className="text-xs text-muted-foreground uppercase tracking-wide">Custos Totais</div>
+            </div>
+            <div className="text-2xl font-semibold text-foreground mt-2" data-testid="text-monthly-costs">
+              {isLoadingDoctor ? "..." : formatCurrency(
+                doctorReport?.reduce((sum, doctor) => sum + doctor.totalCosts, 0) || 0
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Fixos + Procedimentos
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="flex items-center space-x-2">
+              <DollarSign className="h-5 w-5 text-blue-600" />
+              <div className="text-xs text-muted-foreground uppercase tracking-wide">Lucro Líquido</div>
+            </div>
+            <div className={`text-2xl font-semibold mt-2 ${
+              (!isLoadingReport && !isLoadingDoctor) && 
+              ((monthlyReport?.total || 0) - (doctorReport?.reduce((sum, doctor) => sum + doctor.totalCosts, 0) || 0)) >= 0 
+                ? 'text-blue-600' : 'text-red-600'
+            }`} data-testid="text-monthly-profit">
+              {(isLoadingReport || isLoadingDoctor) ? "..." : formatCurrency(
+                (monthlyReport?.total || 0) - (doctorReport?.reduce((sum, doctor) => sum + doctor.totalCosts, 0) || 0)
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Receita - Custos
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="flex items-center space-x-2">
+              <Users className="h-5 w-5 text-purple-600" />
               <div className="text-xs text-muted-foreground uppercase tracking-wide">Atendimentos</div>
             </div>
             <div className="text-2xl font-semibold text-foreground mt-2" data-testid="text-monthly-count">
@@ -189,21 +227,18 @@ export default function MonthlyDashboard() {
 
           <Card className="p-4">
             <div className="flex items-center space-x-2">
-              <TrendingUp className="h-5 w-5 text-purple-600" />
-              <div className="text-xs text-muted-foreground uppercase tracking-wide">PIX</div>
-            </div>
-            <div className="text-2xl font-semibold text-foreground mt-2" data-testid="text-monthly-pix">
-              {isLoadingReport ? "..." : formatCurrency(monthlyReport?.pixTotal || 0)}
-            </div>
-          </Card>
-
-          <Card className="p-4">
-            <div className="flex items-center space-x-2">
               <CreditCard className="h-5 w-5 text-orange-600" />
-              <div className="text-xs text-muted-foreground uppercase tracking-wide">Cartões</div>
+              <div className="text-xs text-muted-foreground uppercase tracking-wide">PIX + Cartões</div>
             </div>
-            <div className="text-2xl font-semibold text-foreground mt-2" data-testid="text-monthly-cards">
-              {isLoadingReport ? "..." : formatCurrency((monthlyReport?.creditCardTotal || 0) + (monthlyReport?.debitCardTotal || 0))}
+            <div className="text-2xl font-semibold text-foreground mt-2" data-testid="text-monthly-cards-pix">
+              {isLoadingReport ? "..." : formatCurrency(
+                (monthlyReport?.pixTotal || 0) + 
+                (monthlyReport?.creditCardTotal || 0) + 
+                (monthlyReport?.debitCardTotal || 0)
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Pagamentos eletrônicos
             </div>
           </Card>
         </div>
@@ -214,24 +249,61 @@ export default function MonthlyDashboard() {
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4 flex items-center">
               <Users className="h-5 w-5 mr-2" />
-              Desempenho por Médico
+              Análise Financeira por Médico
             </h3>
             {isLoadingDoctor ? (
               <div className="text-center py-8 text-muted-foreground">Carregando...</div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {doctorReport?.map((doctor, index) => (
-                  <div key={index} className="border-b border-border pb-3 last:border-b-0">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="font-medium" data-testid={`doctor-name-${index}`}>
+                  <div key={index} className="border border-border rounded-lg p-4">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="font-bold text-lg" data-testid={`doctor-name-${index}`}>
                         {doctorLabels[doctor.doctor] || doctor.doctor}
                       </span>
-                      <span className="text-lg font-semibold text-green-600" data-testid={`doctor-total-${index}`}>
-                        {formatCurrency(doctor.total)}
-                      </span>
+                      <div className="text-right">
+                        <div className="text-lg font-semibold text-green-600" data-testid={`doctor-revenue-${index}`}>
+                          Receita: {formatCurrency(doctor.total)}
+                        </div>
+                        <div className={`text-lg font-semibold ${doctor.profit >= 0 ? 'text-blue-600' : 'text-red-600'}`} data-testid={`doctor-profit-${index}`}>
+                          Lucro: {formatCurrency(doctor.profit)}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      {doctor.count} atendimentos | {doctor.procedures.length} procedimentos diferentes
+                    
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <div className="text-muted-foreground">Atendimentos:</div>
+                        <div className="font-medium">{doctor.count}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Procedimentos:</div>
+                        <div className="font-medium">{doctor.procedures.length} diferentes</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Custos Procedimentos:</div>
+                        <div className="font-medium text-orange-600" data-testid={`doctor-procedure-costs-${index}`}>
+                          {formatCurrency(doctor.procedureCosts)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Custos Fixos:</div>
+                        <div className="font-medium text-red-600" data-testid={`doctor-fixed-costs-${index}`}>
+                          {formatCurrency(doctor.fixedCosts)}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 pt-3 border-t border-border">
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">Custo Total Mensal:</span>
+                        <span className="font-semibold text-red-600" data-testid={`doctor-total-costs-${index}`}>
+                          {formatCurrency(doctor.totalCosts)}
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Condomínio (R$ 6.000) + Centro Cirúrgico (R$ 1.500) + Custos de Procedimentos
+                      </div>
                     </div>
                   </div>
                 ))}
