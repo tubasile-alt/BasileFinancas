@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Hospital, TrendingUp, Users, DollarSign, Calendar, CreditCard } from "lucide-react";
 import { Link } from "wouter";
+import PasswordProtection from "@/components/password-protection";
 import { getProcedureCost, MONTHLY_FIXED_COSTS } from "@/lib/procedure-costs";
 
 interface MonthlyReportData {
@@ -102,7 +103,8 @@ export default function MonthlyDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <PasswordProtection>
+      <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="bg-primary text-primary-foreground shadow-sm border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -348,6 +350,7 @@ export default function MonthlyDashboard() {
           )}
         </Card>
       </main>
-    </div>
+      </div>
+    </PasswordProtection>
   );
 }
