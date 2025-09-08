@@ -75,7 +75,7 @@ export const procedureCostsByDoctor: Record<string, ProcedureCostData[]> = {
     { name: 'Transplante Capilar', cost: 2000 }, // R$ 2.000 por transplante
     { name: 'Body Hair', cost: 2000 } // R$ 2.000 por procedimento
   ],
-  // Dermatologia - custos específicos
+  // Dr. Arthur - custos específicos
   'dermatologia': [
     { name: 'botox pequeno', cost: 200 },
     { name: 'botox médio', cost: 350 },
