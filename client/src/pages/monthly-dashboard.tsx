@@ -254,20 +254,25 @@ export default function MonthlyDashboard() {
                     <div>
                       <div className="text-muted-foreground">Taxa 11%</div>
                       <div className="font-semibold text-lg text-orange-600">
-                        {formatCurrency(Math.max(doctor.cardTotal, doctor.nfTotal) * 0.11)}
+                        {doctor.doctor === 'icb-transplante' ? 
+                          formatCurrency(0) : 
+                          formatCurrency(Math.max(doctor.cardTotal, doctor.nfTotal) * 0.11)
+                        }
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm border-t pt-3">
-                    <div>
-                      <div className="text-muted-foreground">Condomínio</div>
-                      <div className="font-semibold text-red-600">{formatCurrency(MONTHLY_FIXED_COSTS.condominio)}</div>
+                  {doctor.doctor !== 'fisioterapia' && (
+                    <div className="grid grid-cols-2 gap-4 text-sm border-t pt-3">
+                      <div>
+                        <div className="text-muted-foreground">Condomínio</div>
+                        <div className="font-semibold text-red-600">{formatCurrency(MONTHLY_FIXED_COSTS.condominio)}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Centro Cirúrgico</div>
+                        <div className="font-semibold text-red-600">{formatCurrency(MONTHLY_FIXED_COSTS.centro_cirurgico)}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-muted-foreground">Centro Cirúrgico</div>
-                      <div className="font-semibold text-red-600">{formatCurrency(MONTHLY_FIXED_COSTS.centro_cirurgico)}</div>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 <div>

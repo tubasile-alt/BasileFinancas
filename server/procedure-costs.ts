@@ -37,7 +37,8 @@ export const procedureCostsByDoctor: Record<string, ProcedureCostData[]> = {
     { name: 'contorno corporal (lift de coxa, dorso, braco)', cost: 1512.5 },
     { name: 'BICHECTOMIA', cost: 605 },
     { name: 'consulta', cost: 0 },
-    { name: 'cirugia plástica pequena com sedação', cost: 484 }
+    { name: 'cirugia plástica pequena com sedação', cost: 484 },
+    { name: 'Morpheus', cost: 0 }
   ],
   'dr-vinicius': [
     { name: 'Mastopexia com Protese', cost: 1210 },
@@ -64,6 +65,7 @@ export const procedureCostsByDoctor: Record<string, ProcedureCostData[]> = {
     { name: 'BICHECTOMIA', cost: 605 },
     { name: 'consulta', cost: 0 },
     { name: 'cirugia plástica pequena com sedação', cost: 484 },
+    { name: 'Morpheus', cost: 0 },
     { name: 'DIFERENÇA PACOTE', cost: 0 },
     { name: 'MADAH', cost: 0 },
     { name: 'FITA SILICONE', cost: 0 }
