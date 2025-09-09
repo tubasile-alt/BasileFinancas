@@ -1,6 +1,6 @@
 import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, type DailyClosure, type InsertDailyClosure, users, financialEntries, dailyClosure } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte, like } from "drizzle-orm";
+import { eq, and, gte, lte, like, ilike } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { calculateProcedureCosts, MONTHLY_FIXED_COSTS } from "./procedure-costs";
 
@@ -806,7 +806,7 @@ export class DatabaseStorage implements IStorage {
     
     if (searchTerm && searchTerm.length > 0) {
       query = query.where(
-        like(financialEntries.patientName, `%${searchTerm}%`)
+        ilike(financialEntries.patientName, `%${searchTerm}%`)
       ) as typeof query;
     }
     

@@ -55,9 +55,8 @@ export function PatientSearchSection() {
     setIsEditDialogOpen(false);
   };
 
-  const filteredPatients = patients.filter(patient =>
-    patient.patientName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // No need to filter here since backend already filters
+  const filteredPatients = patients;
 
   return (
     <Card className="mb-8">
