@@ -40,7 +40,12 @@ export function DailySummary({ date }: DailySummaryProps) {
       <Card className="p-4 border border-border bg-background">
         <div className="text-xs text-muted-foreground uppercase tracking-wide">Data</div>
         <div className="text-2xl font-semibold text-foreground" data-testid="text-date">
-          {new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+{(() => {
+            // Fix timezone issue by creating date with explicit timezone
+            const [year, month, day] = date.split('-').map(Number);
+            const localDate = new Date(year, month - 1, day);
+            return localDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+          })()}
         </div>
       </Card>
       <Card className="p-4 border border-border bg-background">

@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 
 export default function Dashboard() {
-  const [selectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
 
   return (
     <div className="min-h-screen bg-background">
