@@ -148,9 +148,7 @@ export class MemStorage implements IStorage {
     for (const entry of entries) {
       if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
         for (const payment of entry.paymentDetails) {
-          const baseValue = payment.value || 0;
-          // Adicionar taxa de 11% para cartão de crédito
-          const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
+          const value = payment.value || 0;
           total += value;
           
           switch (payment.method) {
@@ -377,9 +375,7 @@ export class MemStorage implements IStorage {
     for (const entry of entries) {
       if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
         for (const payment of entry.paymentDetails) {
-          const baseValue = payment.value || 0;
-          // Adicionar taxa de 11% para cartão de crédito
-          const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
+          const value = payment.value || 0;
           total += value;
           
           switch (payment.method) {
@@ -500,9 +496,7 @@ export class DatabaseStorage implements IStorage {
     for (const entry of entries) {
       if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
         for (const payment of entry.paymentDetails) {
-          const baseValue = payment.value || 0;
-          // Adicionar taxa de 11% para cartão de crédito
-          const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
+          const value = payment.value || 0;
           total += value;
           
           switch (payment.method) {
@@ -737,9 +731,7 @@ export class DatabaseStorage implements IStorage {
     for (const entry of entries) {
       if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
         for (const payment of entry.paymentDetails) {
-          const baseValue = payment.value || 0;
-          // Adicionar taxa de 11% para cartão de crédito
-          const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
+          const value = payment.value || 0;
           total += value;
           
           switch (payment.method) {
