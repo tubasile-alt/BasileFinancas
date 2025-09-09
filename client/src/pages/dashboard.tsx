@@ -2,6 +2,7 @@ import { useState } from "react";
 import { FinancialEntryForm } from "@/components/financial-entry-form";
 import { EntriesTable } from "@/components/entries-table";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { PatientSearchSection } from "@/components/patient-search-section";
 import { Hospital } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -45,6 +46,9 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <ErrorBoundary>
+          <PatientSearchSection />
+        </ErrorBoundary>
         <ErrorBoundary>
           <FinancialEntryForm />
         </ErrorBoundary>
