@@ -35,6 +35,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get unique patients for autocomplete
+  app.get("/api/unique-patients", async (req, res) => {
+    try {
+      const { search } = req.query;
+      const patients = await storage.getUniquePatients(search as string | undefined);
+      res.json(patients);
+    } catch (error) {
+      console.error("Error fetching unique patients:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Get single financial entry
   app.get("/api/financial-entries/:id", async (req, res) => {
     try {

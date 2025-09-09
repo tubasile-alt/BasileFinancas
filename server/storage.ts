@@ -1,6 +1,6 @@
 import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, type DailyClosure, type InsertDailyClosure, users, financialEntries, dailyClosure } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, gte, lte, like } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { calculateProcedureCosts, MONTHLY_FIXED_COSTS } from "./procedure-costs";
 
@@ -55,6 +55,8 @@ export interface IStorage {
   
   createDailyClosure(closure: InsertDailyClosure): Promise<DailyClosure>;
   getDailyClosure(date: string): Promise<DailyClosure | undefined>;
+  
+  getUniquePatients(searchTerm?: string): Promise<Array<{ patientName: string; patientCode: string; }>>;
 }
 
 export class MemStorage implements IStorage {
@@ -764,6 +766,25 @@ export class DatabaseStorage implements IStorage {
       transferTotal,
       count: entries.length
     };
+  }
+  
+  async getUniquePatients(searchTerm?: string): Promise<Array<{ patientName: string; patientCode: string; }>> {
+    let query = db.select({
+      patientName: financialEntries.patientName,
+      patientCode: financialEntries.patientCode
+    })
+    .from(financialEntries)
+    .groupBy(financialEntries.patientName, financialEntries.patientCode)
+    .orderBy(financialEntries.patientName);
+    
+    if (searchTerm && searchTerm.length > 0) {
+      query = query.where(
+        like(financialEntries.patientName, `%${searchTerm}%`)
+      ) as typeof query;
+    }
+    
+    const result = await query.limit(10);
+    return result;
   }
 }
 
