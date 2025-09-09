@@ -22,6 +22,13 @@ export function PatientSearchSection() {
 
   const { data: patients = [] } = useQuery<Patient[]>({
     queryKey: ["/api/unique-patients", searchTerm],
+    queryFn: async () => {
+      const response = await fetch(`/api/unique-patients?search=${encodeURIComponent(searchTerm)}`);
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    },
     enabled: searchTerm.length >= 2,
   });
 
