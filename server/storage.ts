@@ -411,6 +411,33 @@ export class MemStorage implements IStorage {
       count: entries.length
     };
   }
+  
+  async getUniquePatients(searchTerm?: string): Promise<Array<{ patientName: string; patientCode: string; }>> {
+    const entries = Array.from(this.financialEntries.values());
+    const patientsMap = new Map<string, { patientName: string; patientCode: string; }>();
+    
+    entries.forEach(entry => {
+      const key = `${entry.patientName}-${entry.patientCode}`;
+      if (!patientsMap.has(key)) {
+        patientsMap.set(key, {
+          patientName: entry.patientName,
+          patientCode: entry.patientCode
+        });
+      }
+    });
+    
+    let patients = Array.from(patientsMap.values());
+    
+    if (searchTerm && searchTerm.length > 0) {
+      patients = patients.filter(patient => 
+        patient.patientName.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    return patients
+      .sort((a, b) => a.patientName.localeCompare(b.patientName))
+      .slice(0, 10);
+  }
 }
 
 export class DatabaseStorage implements IStorage {
