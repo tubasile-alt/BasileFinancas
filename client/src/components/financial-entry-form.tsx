@@ -62,6 +62,10 @@ export function FinancialEntryForm({ mode = 'create', editData, onSuccess }: Fin
     if (mode === 'edit' && editData) {
       setSelectedDoctor(editData.doctor || "");
       setPaymentDetails(editData.paymentDetails || [{ method: '', value: 0, installments: 1 }]);
+      setSelectedPatient({
+        patientName: editData.patientName || "",
+        patientCode: editData.patientCode || ""
+      });
       
       // Reset form with edit data
       form.reset({
