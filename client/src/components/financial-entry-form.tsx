@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import type { PaymentDetail } from "@shared/schema";
 import { proceduresByDoctor, doctorOptions, paymentMethodOptions, entryByOptions, installmentOptions } from "@/lib/procedure-data";
+import { PatientAutocomplete } from "@/components/patient-autocomplete";
 
 interface FinancialEntryFormProps {
   mode?: 'create' | 'edit';
@@ -27,6 +28,7 @@ export function FinancialEntryForm({ mode = 'create', editData, onSuccess }: Fin
   const queryClient = useQueryClient();
   const [selectedDoctor, setSelectedDoctor] = useState<string>("");
   const [paymentDetails, setPaymentDetails] = useState<PaymentDetail[]>([{ method: '', value: 0, installments: 1 }]);
+  const [selectedPatient, setSelectedPatient] = useState<{ patientName: string; patientCode: string; } | null>(null);
 
   const form = useForm<InsertFinancialEntry>({
     resolver: zodResolver(insertFinancialEntrySchema),
@@ -233,24 +235,24 @@ export function FinancialEntryForm({ mode = 'create', editData, onSuccess }: Fin
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="patientName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-base font-medium mb-3 block">Nome da Paciente *</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="Digite o nome completo"
-                        data-testid="input-patient-name"
-                        className="h-12 text-base"
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div>
+                <PatientAutocomplete
+                  selectedPatient={selectedPatient}
+                  onPatientSelect={(patient) => {
+                    setSelectedPatient(patient);
+                    form.setValue('patientName', patient.patientName);
+                    form.setValue('patientCode', patient.patientCode);
+                  }}
+                  className=""
+                />
+                <FormField
+                  control={form.control}
+                  name="patientName"
+                  render={({ field }) => (
+                    <Input type="hidden" {...field} />
+                  )}
+                />
+              </div>
 
               <FormField
                 control={form.control}
