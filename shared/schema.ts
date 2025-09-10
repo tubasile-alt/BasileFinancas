@@ -190,3 +190,56 @@ export type InsertOperationalSummary = z.infer<typeof insertOperationalSummarySc
 export type InsertCategoryTotal = z.infer<typeof insertCategoryTotalSchema>;
 export type InsertWeeklyCashFlow = z.infer<typeof insertWeeklyCashFlowSchema>;
 export type InsertTopTransaction = z.infer<typeof insertTopTransactionSchema>;
+
+// Annual Dashboard Schemas
+
+export const annualMonthSchema = z.object({
+  month: z.number().min(1).max(12),
+  entradas: z.number().min(0),
+  saidas: z.number().min(0),
+  net: z.number(),
+});
+
+export type AnnualMonth = z.infer<typeof annualMonthSchema>;
+
+export const annualCategoryTotalSchema = z.object({
+  categoria: z.string().min(1),
+  entradas: z.number().min(0),
+  saidas: z.number().min(0),
+  net: z.number(),
+});
+
+export type AnnualCategoryTotal = z.infer<typeof annualCategoryTotalSchema>;
+
+export const annualSpendResponseSchema = z.object({
+  year: z.number().min(1900),
+  months: z.array(annualMonthSchema),
+  totals: z.object({
+    entradas: z.number().min(0),
+    saidas: z.number().min(0),
+    net: z.number(),
+  }),
+  byCategory: z.array(annualCategoryTotalSchema),
+});
+
+export type AnnualSpendResponse = z.infer<typeof annualSpendResponseSchema>;
+
+export const annualSpendQuerySchema = z.object({
+  year: z.coerce.number().min(1900),
+  categoria: z.string().optional(),
+  tipo: z.enum(['entrada', 'saida']).optional(),
+});
+
+export type AnnualSpendQuery = z.infer<typeof annualSpendQuerySchema>;
+
+// Insert schemas for annual types
+export const insertAnnualMonthSchema = annualMonthSchema;
+export const insertAnnualCategoryTotalSchema = annualCategoryTotalSchema;
+export const insertAnnualSpendResponseSchema = annualSpendResponseSchema;
+export const insertAnnualSpendQuerySchema = annualSpendQuerySchema;
+
+// Insert types for annual schemas
+export type InsertAnnualMonth = z.infer<typeof insertAnnualMonthSchema>;
+export type InsertAnnualCategoryTotal = z.infer<typeof insertAnnualCategoryTotalSchema>;
+export type InsertAnnualSpendResponse = z.infer<typeof insertAnnualSpendResponseSchema>;
+export type InsertAnnualSpendQuery = z.infer<typeof insertAnnualSpendQuerySchema>;

@@ -1,0 +1,171 @@
+Dado um extrato mensal (XLS/XLSX/CSV/PDF/OFX), o app deve:
+
+Padronizar Data, Histórico, Documento, Valor, Saldo.
+
+Excluir do resultado operacional as movimentações financeiras internas (aplicação/resgate/entre contas).
+
+Identificar IMPOSTOS por regras estritas de palavras-chave.
+
+Identificar SALÁRIOS por duas vias:
+
+Regra estrita por palavras-chave (quando o histórico deixa claro).
+
+Heurística para PIX ENVIADO a pessoas físicas (sem sinal de empresa), preferencialmente entre dias 1 e 12 do mês.
+
+Confirmar salários batendo o beneficiário contra um dicionário de funcionários (CSV), quando disponível.
+
+Gerar os totais e listas (impostos, salários confirmados, salários heurísticos a revisar) e uma coluna Classificação Final no arquivo anotado.
+
+1) Padronização (entrada)
+
+Datas: interpretar dd/mm/aaaa e armazenar aaaa-mm-dd.
+
+Valor: número com débito negativo e crédito positivo (remover “R$”, trocar vírgula por ponto).
+
+Colunas mínimas: Data, Historico, Valor; Documento e Saldo são opcionais.
+
+OFX: <DTPOSTED>→Data, <TRNAMT>→Valor, <NAME>/<MEMO>→Histórico.
+
+PDF: extrair tabela; se falhar, pedir XLSX/OFX.
+
+2) Primeiro filtro: Movimentação Financeira (não operacional)
+
+Crie uma flag Eh_MovtoFinanceiro quando o Histórico indicar aplicações/resgates/transferências entre contas próprias.
+Padrões (ordem antes de qualquer outra regra):
+
+“RESGATE CONTAMAX”, “RESGATE”, “APLICACAO/APLICAÇÃO”, “CONTA INVESTIMENTO”;
+
+“TRANSFERÊNCIA ENTRE CONTAS”, “ENTRE CONTAS”, “MESMO TITULAR”;
+
+TED/DOC entre contas da própria empresa;
+
+Padrões de agência/conta (ex.: 3742.13.007880-5 etc.).
+
+Tudo que cair aqui não entra em Imposto nem Salário, e fica fora do resultado operacional (mas mantenha visível para conferência).
+
+3) IMPOSTOS (regra estrita por palavras-chave)
+
+Crie Eh_Imposto = True se o Histórico contiver algum destes termos (case-insensitive, acentos considerados):
+
+DARF, GPS, INSS, FGTS, IRPJ, IRRF, CSLL, ISS, ICMS
+
+TRIBUTO, IMPOSTO, DAS, SIMPLES NACIONAL, RECEITA FEDERAL
+
+MUNICÍPIO/MUNICIPAL, PREFEITURA
+
+GNRE, GARE, GRU, eSOCIAL, SEFIP, DCTF
+
+Observações:
+
+Exemplos típicos que devem bater: “DARF TRIBUTOS FEDERAIS”, “DARF SIMPLES NACIONAL”, “Município de Ribeirão Preto”, “IOF IMPOSTO”.
+
+Se um fornecedor “LTDA” aparecer sem nenhum termo tributário, não classifique como imposto. Se houver dúvida, envie para fila de revisão (flag Revisar_Imposto).
+
+4) SALÁRIOS (regra estrita por palavras-chave)
+
+Crie Eh_Salario_Palavra = True se o Histórico contiver:
+
+SALÁRIO, FOLHA, PRÓ-LABORE/PRO-LABORE, 13º/ DÉCIMO TERCEIRO, FÉRIAS, ADIANTAMENTO, HOLERITE, INSS FOLHA, VT/VR/VA.
+
+Esses lançamentos são salários/folha confirmados.
+
+5) SALÁRIOS (Heurística) para PIX ENVIADO a Pessoa Física
+
+Crie Eh_Salario_Heuristico = True apenas se todos os critérios abaixo forem verdadeiros:
+
+Histórico contém “PIX ENVIADO”;
+
+Não contém termos de empresa: LTDA, ME, EIRELI, S/A/SA, MEI, CNPJ, e palavras como INDÚSTRIA, COMÉRCIO, DISTRIBUIDORA, HOSPITAL, CLÍNICA, SERVIÇOS, TECNOLOGIA, ODONTO, LABORATÓRIO;
+
+O texto após “PIX ENVIADO” parece nome de pessoa (2 a 4 palavras alfabéticas);
+
+Data entre dia 1 e 12 do mês (janela típica de folha/adiantamento — pode ajustar depois);
+
+Valor < 0 (saída).
+
+Esses são candidatos a salário. Para virar “confirmado”, use o dicionário de funcionários (abaixo).
+
+6) Dicionários (fortemente recomendado)
+
+funcionarios.csv (para confirmar salário):
+
+Colunas: nome_exibicao; cpf(opcional); apelidos/variacoes
+
+Se o beneficiário do PIX bater nesse dicionário, marque Salario_Confirmado = True e Classificação Final = “Salário (confirmado)” (mesmo que não tenha palavras “salário/folha”).
+
+fornecedores.csv (para blindar contra falsos salários):
+
+Colunas: razao_social; cnpj(opcional); apelidos/variacoes
+
+Se bater aqui, nunca marcar como salário.
+
+Prioridade de decisão (tie-breaker):
+Eh_MovtoFinanceiro ► Eh_Imposto ► Eh_Salario_Palavra ► funcionários.csv confirma ► Eh_Salario_Heuristico ► (senão) Outras regras do app.
+
+7) Classificação Final por linha
+
+Atribua um rótulo único:
+
+Imposto (se Eh_Imposto e não Eh_MovtoFinanceiro)
+
+Salário (confirmado) (se Eh_Salario_Palavra ou Salario_Confirmado)
+
+Salário (heurístico) (se Eh_Salario_Heuristico e não confirmado)
+
+Mov. Financeira (não operacional) (se Eh_MovtoFinanceiro)
+
+Outros/Fornecedor/Contas (casos remanescentes)
+
+8) Saídas que você deve gerar
+
+Totais (texto)
+
+Impostos (R$) = soma das saídas com Imposto.
+
+Salários confirmados (R$) = soma das saídas marcadas como Salário (confirmado).
+
+Salários (heurístico) (R$) = soma das saídas marcadas como Salário (heurístico) (pedir revisão).
+
+Listas (texto)
+
+Impostos: Data | Histórico | Valor
+
+Salários (confirmados): Data | Histórico | Valor
+
+Salários (heurístico): Data | Histórico | Valor ([Revisar])
+
+Arquivo anotado (CSV/XLSX) com colunas extras:
+
+Eh_MovtoFinanceiro, Eh_Imposto, Eh_Salario_Palavra, Eh_Salario_Heuristico, Salario_Confirmado, Classificacao_Final.
+
+Fila de revisão (txt) para itens ambíguos (ex.: fornecedor classificado como imposto por engano).
+
+9) Qualidade & testes
+
+Nenhuma movimentação financeira interna pode cair em Imposto/Salário.
+
+Totais = soma das linhas listadas em cada categoria.
+
+Testes de regressão rápidos:
+
+“DARF TRIBUTOS FEDERAIS” → Imposto
+
+“Município de Ribeirão Preto (boleto)” → Imposto
+
+“PIX ENVIADO FULANO SILVA em 04/08, valor negativo, sem ‘LTDA’” → Salário (heurístico)
+
+“RESGATE CONTAMAX” → Mov. Financeira (não operacional)
+
+“TRANSFERÊNCIA ENTRE CONTAS DE: 3742.13.007880-5” → Mov. Financeira (não operacional)
+
+“Casa das Ceras LTDA (sem palavras tributárias)” → Fornecedor/Contas, não imposto (mandar revisar se necessário)
+
+10) Mensagem final (UX sugerida)
+
+“Impostos detectados: R$ X.XXX,XX”
+
+“Salários (confirmados): R$ X.XXX,XX”
+
+“Salários (heurístico): R$ X.XXX,XX — revise e, se forem funcionários, inclua no funcionarios.csv para confirmação automática nas próximas rodadas.”
+
+“Movimentações financeiras (aplicações/resgates/entre contas) foram excluídas do operacional.”

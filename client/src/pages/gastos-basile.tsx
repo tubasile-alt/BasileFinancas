@@ -63,6 +63,7 @@ import {
   generateTop10Revenues 
 } from '@/lib/report-generators';
 import { ExpenseCategoryChart, WeeklyCashFlowChart } from '@/components/gastos-charts';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   exportExtratoPadronizado,
   exportResumoOperacional,
@@ -143,6 +144,18 @@ const historicalFiltersSchema = z.object({
 
 type HistoricalFiltersData = z.infer<typeof historicalFiltersSchema>;
 
+// Schema para filtros de gasto anual
+const annualFiltersSchema = z.object({
+  year: z.number().min(2020).max(new Date().getFullYear()),
+  categoria: z.string().optional(),
+  tipo: z.enum(['entrada', 'saida', 'todos']).optional(),
+});
+
+type AnnualFiltersData = z.infer<typeof annualFiltersSchema>;
+
+// Import backend schema
+import type { AnnualSpendResponse } from '@shared/schema';
+
 export default function GastosBasilePage() {
   // Estados principais
   const [processedData, setProcessedData] = useState<ProcessedData | null>(null);
@@ -163,6 +176,13 @@ export default function GastosBasilePage() {
 
   // Estados para histórico
   const [historicalFilters, setHistoricalFilters] = useState<HistoricalFiltersData>({});
+
+  // Estados para gasto anual
+  const [annualFilters, setAnnualFilters] = useState<AnnualFiltersData>({
+    year: new Date().getFullYear(),
+    categoria: undefined,
+    tipo: 'todos'
+  });
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -185,6 +205,11 @@ export default function GastosBasilePage() {
   const historicalFiltersForm = useForm<HistoricalFiltersData>({
     resolver: zodResolver(historicalFiltersSchema),
     defaultValues: historicalFilters
+  });
+
+  const annualFiltersForm = useForm<AnnualFiltersData>({
+    resolver: zodResolver(annualFiltersSchema),
+    defaultValues: annualFilters
   });
 
   // Meses para o seletor
@@ -220,6 +245,86 @@ export default function GastosBasilePage() {
     queryKey: ['/api/manual-expenses'],
     enabled: true
   });
+
+  // Helper function to transform backend data to frontend format
+  const transformAnnualData = (backendData: AnnualSpendResponse) => {
+    const monthNames = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+
+    const monthlyData = backendData.months.map(month => ({
+      month: month.month,
+      monthName: monthNames[month.month - 1],
+      entradas: month.entradas,
+      saidas: month.saidas,
+      saldoLiquido: month.net
+    }));
+
+    // Calculate total for percentage calculation
+    const totalExpenses = backendData.byCategory.reduce((sum, cat) => sum + cat.saidas, 0);
+    const totalRevenues = backendData.byCategory.reduce((sum, cat) => sum + cat.entradas, 0);
+    const grandTotal = totalExpenses + totalRevenues;
+
+    // Create category breakdown with tipos (split entrada/saida for each category)
+    const categoryBreakdown: Array<{categoria: string; total: number; tipo: 'entrada' | 'saida'; percentage: number}> = [];
+    
+    backendData.byCategory.forEach(cat => {
+      if (cat.entradas > 0) {
+        categoryBreakdown.push({
+          categoria: cat.categoria,
+          total: cat.entradas,
+          tipo: 'entrada',
+          percentage: grandTotal > 0 ? (cat.entradas / grandTotal) * 100 : 0
+        });
+      }
+      if (cat.saidas > 0) {
+        categoryBreakdown.push({
+          categoria: cat.categoria,
+          total: cat.saidas,
+          tipo: 'saida',
+          percentage: grandTotal > 0 ? (cat.saidas / grandTotal) * 100 : 0
+        });
+      }
+    });
+
+    // Sort by total descending
+    categoryBreakdown.sort((a, b) => b.total - a.total);
+
+    return {
+      totals: {
+        entradas: backendData.totals.entradas,
+        saidas: backendData.totals.saidas,
+        saldoLiquido: backendData.totals.net
+      },
+      monthlyData,
+      categoryBreakdown
+    };
+  };
+
+  const { data: rawAnnualData, isLoading: loadingAnnualSpend } = useQuery<AnnualSpendResponse>({
+    queryKey: ['/api/annual-spend', annualFilters],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set('year', annualFilters.year.toString());
+      if (annualFilters.categoria && annualFilters.categoria !== 'all') {
+        params.set('categoria', annualFilters.categoria);
+      }
+      if (annualFilters.tipo && annualFilters.tipo !== 'todos') {
+        params.set('tipo', annualFilters.tipo);
+      }
+      
+      const response = await fetch(`/api/annual-spend?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch annual spend data');
+      }
+      return response.json();
+    },
+    enabled: true
+  });
+
+  // Transform the data for frontend use
+  const annualSpendData = rawAnnualData ? transformAnnualData(rawAnnualData) : null;
 
   // MUTATIONS: Operações CRUD
   const saveExtractMutation = useMutation({
@@ -487,6 +592,29 @@ export default function GastosBasilePage() {
   }, [deleteManualExpenseMutation]);
 
   /**
+   * Handler para atualizar filtros anuais
+   */
+  const handleAnnualFiltersSubmit = useCallback((data: AnnualFiltersData) => {
+    setAnnualFilters(data);
+    // Invalida a query para recarregar dados
+    queryClient.invalidateQueries({ queryKey: ['/api/annual-spend'] });
+  }, []);
+
+  /**
+   * Handler para reset dos filtros anuais
+   */
+  const handleResetAnnualFilters = useCallback(() => {
+    const defaultFilters: AnnualFiltersData = {
+      year: new Date().getFullYear(),
+      categoria: undefined,
+      tipo: 'todos'
+    };
+    setAnnualFilters(defaultFilters);
+    annualFiltersForm.reset(defaultFilters);
+    queryClient.invalidateQueries({ queryKey: ['/api/annual-spend'] });
+  }, [annualFiltersForm]);
+
+  /**
    * Exportação individual de relatórios (mantém funcionalidade original)
    */
   const handleExportReport = useCallback(async (reportType: string) => {
@@ -681,7 +809,7 @@ export default function GastosBasilePage() {
         
         {/* Tabs Organization */}
         <Tabs defaultValue="upload" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="upload" className="flex items-center gap-2" data-testid="tab-upload">
               <Upload className="h-4 w-4" />
               Upload & Processamento
@@ -689,6 +817,10 @@ export default function GastosBasilePage() {
             <TabsTrigger value="manual" className="flex items-center gap-2" data-testid="tab-manual">
               <Plus className="h-4 w-4" />
               Lançamentos Manuais
+            </TabsTrigger>
+            <TabsTrigger value="gasto-anual" className="flex items-center gap-2" data-testid="tab-gasto-anual">
+              <BarChart3 className="h-4 w-4" />
+              Gasto Anual
             </TabsTrigger>
             <TabsTrigger value="history" className="flex items-center gap-2" data-testid="tab-history">
               <History className="h-4 w-4" />
@@ -1336,7 +1468,276 @@ export default function GastosBasilePage() {
             </Card>
           </TabsContent>
 
-          {/* Tab 3: Histórico */}
+          {/* Tab 3: Gasto Anual */}
+          <TabsContent value="gasto-anual" className="space-y-6">
+            {/* Filtros */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Filter className="h-5 w-5" />
+                  Filtros de Análise
+                </CardTitle>
+                <CardDescription>
+                  Configure os filtros para análise anual de gastos
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Form {...annualFiltersForm}>
+                  <form onSubmit={annualFiltersForm.handleSubmit(handleAnnualFiltersSubmit)} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <FormField
+                        control={annualFiltersForm.control}
+                        name="year"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Ano</FormLabel>
+                            <Select 
+                              value={field.value?.toString()} 
+                              onValueChange={(value) => field.onChange(parseInt(value))}
+                            >
+                              <FormControl>
+                                <SelectTrigger data-testid="select-annual-year">
+                                  <SelectValue placeholder="Selecione o ano" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {Array.from({ length: currentYear - 2020 + 1 }, (_, i) => currentYear - i).map(year => (
+                                  <SelectItem key={year} value={year.toString()}>
+                                    {year}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={annualFiltersForm.control}
+                        name="categoria"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Categoria</FormLabel>
+                            <Select value={field.value || ""} onValueChange={field.onChange}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-annual-categoria">
+                                  <SelectValue placeholder="Todas as categorias" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="all">Todas as categorias</SelectItem>
+                                {categories.map(category => (
+                                  <SelectItem key={category} value={category}>
+                                    {category}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={annualFiltersForm.control}
+                        name="tipo"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Tipo</FormLabel>
+                            <Select value={field.value || "todos"} onValueChange={field.onChange}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-annual-tipo">
+                                  <SelectValue placeholder="Selecione o tipo" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="todos">Todos</SelectItem>
+                                <SelectItem value="entrada">Entradas</SelectItem>
+                                <SelectItem value="saida">Saídas</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className="flex items-end space-x-2">
+                        <Button type="submit" data-testid="button-apply-annual-filters">
+                          <Filter className="h-4 w-4 mr-2" />
+                          Aplicar
+                        </Button>
+                        <Button type="button" variant="outline" onClick={handleResetAnnualFilters} data-testid="button-reset-annual-filters">
+                          Limpar
+                        </Button>
+                      </div>
+                    </div>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+
+            {/* Loading State */}
+            {loadingAnnualSpend && (
+              <div className="text-center py-8">
+                <Progress value={66} className="w-[60%] mx-auto" />
+                <p className="text-muted-foreground mt-2">Carregando dados anuais...</p>
+              </div>
+            )}
+
+            {/* Cards de totais */}
+            {annualSpendData && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Entradas</CardTitle>
+                      <TrendingUp className="h-4 w-4 text-green-600" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-green-600" data-testid="text-annual-entradas">
+                        {formatCurrencyBR(annualSpendData?.totals.entradas || 0)}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Total de receitas no ano
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Saídas</CardTitle>
+                      <TrendingDown className="h-4 w-4 text-red-600" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-red-600" data-testid="text-annual-saidas">
+                        {formatCurrencyBR(annualSpendData?.totals.saidas || 0)}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Total de despesas no ano
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Saldo Líquido</CardTitle>
+                      <DollarSign className={`h-4 w-4 ${(annualSpendData?.totals.saldoLiquido || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`} />
+                    </CardHeader>
+                    <CardContent>
+                      <div className={`text-2xl font-bold ${(annualSpendData?.totals.saldoLiquido || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`} data-testid="text-annual-saldo">
+                        {formatCurrencyBR(annualSpendData?.totals.saldoLiquido || 0)}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Resultado líquido do ano
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Gráficos */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Bar Chart - Entradas vs Saídas */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5" />
+                        Entradas vs Saídas por Mês
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={annualSpendData?.monthlyData || []}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="monthName" />
+                          <YAxis />
+                          <Tooltip formatter={(value: number) => formatCurrencyBR(value)} />
+                          <Legend />
+                          <Bar dataKey="entradas" fill="#10B981" name="Entradas" />
+                          <Bar dataKey="saidas" fill="#EF4444" name="Saídas" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  {/* Line Chart - Saldo Líquido */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <TrendingUp className="h-5 w-5" />
+                        Saldo Líquido Mensal
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={annualSpendData?.monthlyData || []}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="monthName" />
+                          <YAxis />
+                          <Tooltip formatter={(value: number) => formatCurrencyBR(value)} />
+                          <Legend />
+                          <Line 
+                            type="monotone" 
+                            dataKey="saldoLiquido" 
+                            stroke="#8884d8" 
+                            strokeWidth={3}
+                            name="Saldo Líquido"
+                            dot={{ fill: '#8884d8', strokeWidth: 2, r: 4 }}
+                            activeDot={{ r: 6, stroke: '#8884d8', strokeWidth: 2 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Tabela de breakdown por categoria */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <PieChart className="h-5 w-5" />
+                      Breakdown por Categoria (Top 10)
+                    </CardTitle>
+                    <CardDescription>
+                      Maiores categorias por volume total
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Categoria</TableHead>
+                          <TableHead>Tipo</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
+                          <TableHead className="text-right">% do Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {annualSpendData?.categoryBreakdown.slice(0, 10).map((category, index) => (
+                          <TableRow key={`${category.categoria}-${category.tipo}`} data-testid={`row-category-${index}`}>
+                            <TableCell className="font-medium">{category.categoria}</TableCell>
+                            <TableCell>
+                              <Badge variant={category.tipo === 'entrada' ? 'default' : 'destructive'}>
+                                {category.tipo === 'entrada' ? 'Entrada' : 'Saída'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {formatCurrencyBR(category.total)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {category.percentage.toFixed(1)}%
+                            </TableCell>
+                          </TableRow>
+                        )) || []}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </TabsContent>
+
+          {/* Tab 4: Histórico */}
           <TabsContent value="history" className="space-y-6">
             {/* Seção de Transações Bancárias */}
             <Card>

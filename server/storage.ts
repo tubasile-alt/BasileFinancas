@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, type DailyClosure, type InsertDailyClosure, type BankTransactionPersistent, type InsertBankTransactionPersistent, type ManualExpense, type InsertManualExpense, users, financialEntries, dailyClosure, bankTransactions, manualExpenses } from "@shared/schema";
+import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, type DailyClosure, type InsertDailyClosure, type BankTransactionPersistent, type InsertBankTransactionPersistent, type ManualExpense, type InsertManualExpense, type AnnualSpendResponse, type AnnualSpendQuery, users, financialEntries, dailyClosure, bankTransactions, manualExpenses } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, like, ilike } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -71,6 +71,9 @@ export interface IStorage {
   getManualExpense(id: string): Promise<ManualExpense | undefined>;
   updateManualExpense(id: string, expense: Partial<InsertManualExpense>): Promise<ManualExpense | undefined>;
   deleteManualExpense(id: string): Promise<boolean>;
+  
+  // Annual Dashboard
+  getAnnualSpend(params: AnnualSpendQuery): Promise<AnnualSpendResponse>;
 }
 
 export class MemStorage implements IStorage {
@@ -558,6 +561,118 @@ export class MemStorage implements IStorage {
   async deleteManualExpense(id: string): Promise<boolean> {
     return this.manualExpenses.delete(id);
   }
+
+  async getAnnualSpend(params: AnnualSpendQuery): Promise<AnnualSpendResponse> {
+    const { year, categoria, tipo } = params;
+    
+    // Initialize months with zero values
+    const monthsData: { [key: number]: { entradas: number; saidas: number; } } = {};
+    for (let month = 1; month <= 12; month++) {
+      monthsData[month] = { entradas: 0, saidas: 0 };
+    }
+    
+    // Categories aggregation
+    const categoriesData: { [key: string]: { entradas: number; saidas: number; } } = {};
+    
+    // Process bank transactions
+    Array.from(this.bankTransactions.values()).forEach(transaction => {
+      if (transaction.ano === year) {
+        // Apply filters
+        if (categoria && transaction.categoria !== categoria) return;
+        
+        const valor = parseFloat(transaction.valor);
+        const isEntrada = valor >= 0;
+        const tipoTransaction = isEntrada ? 'entrada' : 'saida';
+        
+        if (tipo && tipo !== tipoTransaction) return;
+        
+        const absValue = Math.abs(valor);
+        const month = transaction.mes;
+        
+        // Add to monthly data
+        if (isEntrada) {
+          monthsData[month].entradas += absValue;
+        } else {
+          monthsData[month].saidas += absValue;
+        }
+        
+        // Add to categories data
+        if (!categoriesData[transaction.categoria]) {
+          categoriesData[transaction.categoria] = { entradas: 0, saidas: 0 };
+        }
+        if (isEntrada) {
+          categoriesData[transaction.categoria].entradas += absValue;
+        } else {
+          categoriesData[transaction.categoria].saidas += absValue;
+        }
+      }
+    });
+    
+    // Process manual expenses
+    Array.from(this.manualExpenses.values()).forEach(expense => {
+      const expenseDate = new Date(expense.dateISO);
+      if (expenseDate.getFullYear() === year) {
+        // Apply filters
+        if (categoria && expense.categoria !== categoria) return;
+        if (tipo && expense.tipo !== tipo) return;
+        
+        const valor = parseFloat(expense.valor);
+        const month = expenseDate.getMonth() + 1; // getMonth() returns 0-11
+        
+        // Add to monthly data
+        if (expense.tipo === 'entrada') {
+          monthsData[month].entradas += valor;
+        } else {
+          monthsData[month].saidas += valor;
+        }
+        
+        // Add to categories data
+        if (!categoriesData[expense.categoria]) {
+          categoriesData[expense.categoria] = { entradas: 0, saidas: 0 };
+        }
+        if (expense.tipo === 'entrada') {
+          categoriesData[expense.categoria].entradas += valor;
+        } else {
+          categoriesData[expense.categoria].saidas += valor;
+        }
+      }
+    });
+    
+    // Build response
+    const months = Array.from({ length: 12 }, (_, i) => {
+      const month = i + 1;
+      const data = monthsData[month];
+      return {
+        month,
+        entradas: data.entradas,
+        saidas: data.saidas,
+        net: data.entradas - data.saidas,
+      };
+    });
+    
+    const totals = months.reduce(
+      (acc, month) => ({
+        entradas: acc.entradas + month.entradas,
+        saidas: acc.saidas + month.saidas,
+        net: acc.net + month.net,
+      }),
+      { entradas: 0, saidas: 0, net: 0 }
+    );
+    
+    const byCategory = Object.entries(categoriesData).map(([categoria, data]) => ({
+      categoria,
+      entradas: data.entradas,
+      saidas: data.saidas,
+      net: data.entradas - data.saidas,
+    }));
+    
+    return {
+      year,
+      months,
+      totals,
+      byCategory,
+    };
+  }
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1036,6 +1151,137 @@ export class DatabaseStorage implements IStorage {
   async deleteManualExpense(id: string): Promise<boolean> {
     const result = await db.delete(manualExpenses).where(eq(manualExpenses.id, id));
     return (result.rowCount || 0) > 0;
+  }
+
+  async getAnnualSpend(params: AnnualSpendQuery): Promise<AnnualSpendResponse> {
+    const { year, categoria, tipo } = params;
+    
+    // Initialize months with zero values
+    const monthsData: { [key: number]: { entradas: number; saidas: number; } } = {};
+    for (let month = 1; month <= 12; month++) {
+      monthsData[month] = { entradas: 0, saidas: 0 };
+    }
+    
+    // Categories aggregation
+    const categoriesData: { [key: string]: { entradas: number; saidas: number; } } = {};
+    
+    // Build conditions for bank transactions
+    const bankConditions = [eq(bankTransactions.ano, year)];
+    if (categoria) {
+      bankConditions.push(eq(bankTransactions.categoria, categoria));
+    }
+    
+    // Get bank transactions for the year
+    const bankData = await db
+      .select()
+      .from(bankTransactions)
+      .where(and(...bankConditions));
+    
+    // Process bank transactions
+    bankData.forEach(transaction => {
+      const valor = parseFloat(transaction.valor);
+      const isEntrada = valor >= 0;
+      const tipoTransaction = isEntrada ? 'entrada' : 'saida';
+      
+      if (tipo && tipo !== tipoTransaction) return;
+      
+      const absValue = Math.abs(valor);
+      const month = transaction.mes;
+      
+      // Add to monthly data
+      if (isEntrada) {
+        monthsData[month].entradas += absValue;
+      } else {
+        monthsData[month].saidas += absValue;
+      }
+      
+      // Add to categories data
+      if (!categoriesData[transaction.categoria]) {
+        categoriesData[transaction.categoria] = { entradas: 0, saidas: 0 };
+      }
+      if (isEntrada) {
+        categoriesData[transaction.categoria].entradas += absValue;
+      } else {
+        categoriesData[transaction.categoria].saidas += absValue;
+      }
+    });
+    
+    // Build conditions for manual expenses
+    const manualConditions = [
+      gte(manualExpenses.dateISO, `${year}-01-01`),
+      lte(manualExpenses.dateISO, `${year}-12-31`)
+    ];
+    if (categoria) {
+      manualConditions.push(eq(manualExpenses.categoria, categoria));
+    }
+    if (tipo) {
+      manualConditions.push(eq(manualExpenses.tipo, tipo));
+    }
+    
+    // Get manual expenses for the year
+    const manualData = await db
+      .select()
+      .from(manualExpenses)
+      .where(and(...manualConditions));
+    
+    // Process manual expenses
+    manualData.forEach(expense => {
+      const expenseDate = new Date(expense.dateISO);
+      const valor = parseFloat(expense.valor);
+      const month = expenseDate.getMonth() + 1; // getMonth() returns 0-11
+      
+      // Add to monthly data
+      if (expense.tipo === 'entrada') {
+        monthsData[month].entradas += valor;
+      } else {
+        monthsData[month].saidas += valor;
+      }
+      
+      // Add to categories data
+      if (!categoriesData[expense.categoria]) {
+        categoriesData[expense.categoria] = { entradas: 0, saidas: 0 };
+      }
+      if (expense.tipo === 'entrada') {
+        categoriesData[expense.categoria].entradas += valor;
+      } else {
+        categoriesData[expense.categoria].saidas += valor;
+      }
+    });
+    
+    // Build response
+    const months = Array.from({ length: 12 }, (_, i) => {
+      const month = i + 1;
+      const data = monthsData[month];
+      return {
+        month,
+        entradas: data.entradas,
+        saidas: data.saidas,
+        net: data.entradas - data.saidas,
+      };
+    });
+    
+    const totals = months.reduce(
+      (acc, month) => ({
+        entradas: acc.entradas + month.entradas,
+        saidas: acc.saidas + month.saidas,
+        net: acc.net + month.net,
+      }),
+      { entradas: 0, saidas: 0, net: 0 }
+    );
+    
+    const byCategory = Object.entries(categoriesData).map(([categoria, data]) => ({
+      categoria,
+      entradas: data.entradas,
+      saidas: data.saidas,
+      net: data.entradas - data.saidas,
+    }));
+    
+    return {
+      year,
+      months,
+      totals,
+      byCategory,
+    };
   }
 }
 

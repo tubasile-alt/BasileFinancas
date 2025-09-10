@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertFinancialEntrySchema, insertBankTransactionPersistentSchema, insertManualExpenseSchema } from "@shared/schema";
+import { insertFinancialEntrySchema, insertBankTransactionPersistentSchema, insertManualExpenseSchema, annualSpendQuerySchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -338,6 +338,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "Expense deleted successfully" });
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Annual dashboard - get spend aggregation by year
+  app.get("/api/annual-spend", async (req, res) => {
+    try {
+      const queryParams = annualSpendQuerySchema.parse(req.query);
+      const annualData = await storage.getAnnualSpend(queryParams);
+      res.json(annualData);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Validation error", errors: error.errors });
+      } else {
+        console.error("Error fetching annual spend data:", error);
+        res.status(500).json({ message: "Internal server error" });
+      }
     }
   });
 
