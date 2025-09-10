@@ -60,7 +60,14 @@ import {
   generateCategoryReport, 
   generateWeeklyCashFlow, 
   generateTop10Expenses,
-  generateTop10Revenues 
+  generateTop10Revenues,
+  generateEnhancedOperationalSummary,
+  generateEnhancedCategoryReport,
+  generateEnhancedTop10Expenses,
+  generateEnhancedTop10Revenues,
+  generateEnhancedWeeklyCashFlow,
+  annotateTransactions,
+  getEnhancedReportStats 
 } from '@/lib/report-generators';
 import { ExpenseCategoryChart, WeeklyCashFlowChart } from '@/components/gastos-charts';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -86,9 +93,20 @@ import type {
   BankTransactionPersistent,
   InsertBankTransactionPersistent,
   ManualExpense,
-  InsertManualExpense
+  InsertManualExpense,
+  EnhancedOperationalSummary,
+  AnnotatedTransaction,
+  CategorizedTotal,
+  CategorizedTransactionList,
+  ReviewQueueItem,
+  UXMessages
 } from '@shared/schema';
-import { getAllCategories } from '@/lib/classification-rules';
+import { 
+  getAllCategories, 
+  classifyTransactionAdvanced,
+  type AdvancedClassificationResult,
+  type ClassificationDictionaries
+} from '@/lib/classification-rules';
 
 // Tipos para estado da aplicação
 interface ProcessingState {
@@ -100,7 +118,9 @@ interface ProcessingState {
 
 interface ProcessedData {
   transactions: ClassifiedTransaction[];
+  annotatedTransactions: AnnotatedTransaction[];
   summary: OperationalSummary;
+  enhancedSummary: EnhancedOperationalSummary;
   categoryReport: CategoryTotal[];
   weeklyCashFlow: WeeklyCashFlow[];
   topDespesas: TopTransaction[];
@@ -112,6 +132,18 @@ interface ProcessedData {
     validTransactions: number;
     detectedMonth: number;
     detectedYear: number;
+  };
+  uxMessages: UXMessages;
+  enhancedStats: {
+    totalTransactions: number;
+    operationalTransactions: number;
+    nonOperationalTransactions: number;
+    financialMovements: number;
+    taxes: number;
+    confirmedSalaries: number;
+    heuristicSalaries: number;
+    reviewQueue: number;
+    operationalRate: number;
   };
 }
 
@@ -184,6 +216,14 @@ export default function GastosBasilePage() {
     tipo: 'todos'
   });
 
+  // Estados para dicionários (classificação avançada)
+  const [funcionarios, setFuncionarios] = useState<string[]>([]);
+  const [fornecedores, setFornecedores] = useState<string[]>([]);
+  const [dictionariesText, setDictionariesText] = useState({
+    funcionarios: '',
+    fornecedores: ''
+  });
+
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -234,6 +274,25 @@ export default function GastosBasilePage() {
 
   // Categorias para seleção
   const categories = getAllCategories();
+
+  // Funções helper para gestão de dicionários
+  const updateFuncionarios = useCallback((text: string) => {
+    const lista = text
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+    setFuncionarios(lista);
+    setDictionariesText(prev => ({ ...prev, funcionarios: text }));
+  }, []);
+
+  const updateFornecedores = useCallback((text: string) => {
+    const lista = text
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+    setFornecedores(lista);
+    setDictionariesText(prev => ({ ...prev, fornecedores: text }));
+  }, []);
   
   // QUERIES: Carregar dados históricos
   const { data: bankTransactions = [], isLoading: loadingBankTransactions } = useQuery<BankTransactionPersistent[]>({
@@ -487,12 +546,42 @@ export default function GastosBasilePage() {
       const topDespesas = generateTop10Expenses(normalizationResult.transactions);
       const topReceitas = generateTop10Revenues(normalizationResult.transactions);
 
+      // Etapa 4: Classificação avançada e relatórios aprimorados
+      const annotatedTransactions = annotateTransactions(
+        normalizationResult.transactions,
+        funcionarios,
+        fornecedores
+      );
+
+      const enhancedSummary = generateEnhancedOperationalSummary(
+        normalizationResult.transactions,
+        funcionarios,
+        fornecedores
+      );
+
+      const enhancedStats = getEnhancedReportStats(
+        normalizationResult.transactions,
+        funcionarios,
+        fornecedores
+      );
+
+      // Gerar mensagens UX
+      const uxMessages: UXMessages = {
+        impostos: `Impostos detectados: ${formatCurrencyBR(Math.abs(enhancedSummary.impostos.total))}`,
+        salariosConfirmados: `Salários (confirmados): ${formatCurrencyBR(Math.abs(enhancedSummary.salariosConfirmados.total))}`,
+        salariosHeuristicos: `Salários (heurístico): ${formatCurrencyBR(Math.abs(enhancedSummary.salariosHeuristicos.total))} — revise e inclua no funcionarios.csv`,
+        movimentacoesFinanceiras: `Movimentações financeiras foram excluídas do operacional.`,
+        filaRevisao: enhancedSummary.filaRevisao.length > 0 ? `${enhancedSummary.filaRevisao.length} itens precisam revisão manual` : undefined
+      };
+
       setProcessingState(prev => ({ ...prev, processingProgress: 85 }));
 
       // Prepara dados processados
       const processed: ProcessedData = {
         transactions: normalizationResult.transactions,
+        annotatedTransactions,
         summary,
+        enhancedSummary,
         categoryReport,
         weeklyCashFlow,
         topDespesas,
@@ -504,7 +593,9 @@ export default function GastosBasilePage() {
           validTransactions: normalizationResult.metadata.validTransactions,
           detectedMonth: finalMonth,
           detectedYear: finalYear
-        }
+        },
+        uxMessages,
+        enhancedStats
       };
 
       setProcessedData(processed);
@@ -626,10 +717,15 @@ export default function GastosBasilePage() {
 
       switch (reportType) {
         case 'extrato':
-          result = await exportExtratoPadronizado(processedData.transactions, { 
-            ano: detectedYear, 
-            mes: detectedMonth 
-          });
+          result = await exportExtratoPadronizado(
+            processedData.transactions, 
+            { 
+              ano: detectedYear, 
+              mes: detectedMonth 
+            },
+            funcionarios,
+            fornecedores
+          );
           break;
         case 'resumo':
           result = await exportResumoOperacional(processedData.summary, { 
@@ -704,7 +800,9 @@ export default function GastosBasilePage() {
         categoryTotals: processedData.categoryReport,
         weeklyCashFlow: processedData.weeklyCashFlow,
         topExpenses: processedData.topDespesas,
-        topRevenues: processedData.topReceitas
+        topRevenues: processedData.topReceitas,
+        funcionarios,
+        fornecedores
       }, { ano: detectedYear, mes: detectedMonth });
 
       if (result.summary.successful > 0) {
@@ -758,7 +856,9 @@ export default function GastosBasilePage() {
         categoryTotals: processedData.categoryReport,
         weeklyCashFlow: processedData.weeklyCashFlow,
         topExpenses: processedData.topDespesas,
-        topRevenues: processedData.topReceitas
+        topRevenues: processedData.topReceitas,
+        funcionarios,
+        fornecedores
       };
 
       // Inclui IDs dos gráficos se disponíveis
@@ -809,7 +909,7 @@ export default function GastosBasilePage() {
         
         {/* Tabs Organization */}
         <Tabs defaultValue="upload" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="upload" className="flex items-center gap-2" data-testid="tab-upload">
               <Upload className="h-4 w-4" />
               Upload & Processamento
@@ -817,6 +917,10 @@ export default function GastosBasilePage() {
             <TabsTrigger value="manual" className="flex items-center gap-2" data-testid="tab-manual">
               <Plus className="h-4 w-4" />
               Lançamentos Manuais
+            </TabsTrigger>
+            <TabsTrigger value="dicionarios" className="flex items-center gap-2" data-testid="tab-dictionaries">
+              <Edit className="h-4 w-4" />
+              Dicionários
             </TabsTrigger>
             <TabsTrigger value="gasto-anual" className="flex items-center gap-2" data-testid="tab-gasto-anual">
               <BarChart3 className="h-4 w-4" />
@@ -1092,6 +1196,384 @@ export default function GastosBasilePage() {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Análise Avançada */}
+                {processedData.enhancedSummary && processedData.uxMessages && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <CheckCircle className="h-5 w-5" />
+                        Análise Avançada
+                      </CardTitle>
+                      <CardDescription>
+                        Classificação inteligente e mensagens de UX
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {/* Mensagens UX obrigatórias */}
+                        <div className="grid gap-3">
+                          <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
+                            <Info className="h-4 w-4 text-blue-600" />
+                            <span className="text-sm font-medium" data-testid="text-taxes-message">
+                              {processedData.uxMessages.impostos}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/30 rounded-lg">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            <span className="text-sm font-medium" data-testid="text-confirmed-salaries-message">
+                              {processedData.uxMessages.salariosConfirmados}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-950/30 rounded-lg">
+                            <AlertCircle className="h-4 w-4 text-yellow-600" />
+                            <span className="text-sm font-medium" data-testid="text-heuristic-salaries-message">
+                              {processedData.uxMessages.salariosHeuristicos}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-950/30 rounded-lg">
+                            <Info className="h-4 w-4 text-gray-600" />
+                            <span className="text-sm font-medium" data-testid="text-financial-movements-message">
+                              {processedData.uxMessages.movimentacoesFinanceiras}
+                            </span>
+                          </div>
+                          {processedData.uxMessages.filaRevisao && (
+                            <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-950/30 rounded-lg">
+                              <AlertCircle className="h-4 w-4 text-red-600" />
+                              <span className="text-sm font-medium" data-testid="text-review-queue-message">
+                                {processedData.uxMessages.filaRevisao}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Totais categorizados em grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                          <div className="text-center p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                            <div className="flex items-center justify-center gap-1 mb-2">
+                              <span className="text-xs font-medium text-blue-600">IMPOSTOS</span>
+                            </div>
+                            <p className="text-lg font-bold text-blue-600" data-testid="text-taxes-total">
+                              {formatCurrencyBR(Math.abs(processedData.enhancedSummary.impostos.total))}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {processedData.enhancedSummary.impostos.lista.length} itens
+                            </p>
+                          </div>
+
+                          <div className="text-center p-4 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                            <div className="flex items-center justify-center gap-1 mb-2">
+                              <span className="text-xs font-medium text-green-600">SALÁRIOS (CONF.)</span>
+                            </div>
+                            <p className="text-lg font-bold text-green-600" data-testid="text-confirmed-salaries-total">
+                              {formatCurrencyBR(Math.abs(processedData.enhancedSummary.salariosConfirmados.total))}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {processedData.enhancedSummary.salariosConfirmados.lista.length} itens
+                            </p>
+                          </div>
+
+                          <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg">
+                            <div className="flex items-center justify-center gap-1 mb-2">
+                              <span className="text-xs font-medium text-yellow-600">SALÁRIOS (HEUR.)</span>
+                            </div>
+                            <p className="text-lg font-bold text-yellow-600" data-testid="text-heuristic-salaries-total">
+                              {formatCurrencyBR(Math.abs(processedData.enhancedSummary.salariosHeuristicos.total))}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {processedData.enhancedSummary.salariosHeuristicos.lista.length} itens
+                            </p>
+                          </div>
+
+                          <div className="text-center p-4 bg-gray-50 dark:bg-gray-950/20 rounded-lg">
+                            <div className="flex items-center justify-center gap-1 mb-2">
+                              <span className="text-xs font-medium text-gray-600">MOV. FINANC.</span>
+                            </div>
+                            <p className="text-lg font-bold text-gray-600" data-testid="text-financial-movements-total">
+                              {formatCurrencyBR(Math.abs(processedData.enhancedSummary.movimentacoesFinanceiras.total))}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {processedData.enhancedSummary.movimentacoesFinanceiras.lista.length} itens
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Listas Categorizadas */}
+                {processedData.enhancedSummary && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Filter className="h-5 w-5" />
+                        Listas Categorizadas
+                      </CardTitle>
+                      <CardDescription>
+                        Transações agrupadas por classificação avançada
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Tabs defaultValue="impostos" data-testid="tabs-categorized-lists">
+                        <TabsList className="grid w-full grid-cols-4">
+                          <TabsTrigger value="impostos" data-testid="tab-taxes">
+                            Impostos ({processedData.enhancedSummary.impostos.lista.length})
+                          </TabsTrigger>
+                          <TabsTrigger value="salarios" data-testid="tab-salaries">
+                            Salários ({processedData.enhancedSummary.salariosConfirmados.lista.length + processedData.enhancedSummary.salariosHeuristicos.lista.length})
+                          </TabsTrigger>
+                          <TabsTrigger value="movfinanceiras" data-testid="tab-financial-movements">
+                            Mov. Financ. ({processedData.enhancedSummary.movimentacoesFinanceiras.lista.length})
+                          </TabsTrigger>
+                          <TabsTrigger value="revisao" data-testid="tab-review-queue">
+                            Fila Revisão ({processedData.enhancedSummary.filaRevisao.length})
+                          </TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="impostos" className="space-y-4">
+                          <div className="rounded-md border">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Data</TableHead>
+                                  <TableHead>Histórico</TableHead>
+                                  <TableHead className="text-right">Valor</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {processedData.enhancedSummary.impostos.lista.length === 0 ? (
+                                  <TableRow>
+                                    <TableCell colSpan={3} className="text-center text-muted-foreground">
+                                      Nenhum imposto detectado
+                                    </TableCell>
+                                  </TableRow>
+                                ) : (
+                                  processedData.enhancedSummary.impostos.lista.map((item, index) => (
+                                    <TableRow key={index}>
+                                      <TableCell className="font-medium" data-testid={`tax-date-${index}`}>
+                                        {item.data}
+                                      </TableCell>
+                                      <TableCell data-testid={`tax-description-${index}`}>
+                                        {item.historico}
+                                      </TableCell>
+                                      <TableCell className="text-right font-medium text-red-600" data-testid={`tax-value-${index}`}>
+                                        {formatCurrencyBR(Math.abs(item.valor))}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))
+                                )}
+                              </TableBody>
+                            </Table>
+                          </div>
+                          {processedData.enhancedSummary.impostos.lista.length > 0 && (
+                            <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                              <span className="text-sm font-medium">Total de Impostos:</span>
+                              <span className="text-lg font-bold text-blue-600" data-testid="taxes-category-total">
+                                {formatCurrencyBR(Math.abs(processedData.enhancedSummary.impostos.total))}
+                              </span>
+                            </div>
+                          )}
+                        </TabsContent>
+
+                        <TabsContent value="salarios" className="space-y-4">
+                          <div className="space-y-6">
+                            {/* Salários Confirmados */}
+                            {processedData.enhancedSummary.salariosConfirmados.lista.length > 0 && (
+                              <div>
+                                <h4 className="text-sm font-semibold mb-3 text-green-600">Salários Confirmados</h4>
+                                <div className="rounded-md border">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Data</TableHead>
+                                        <TableHead>Histórico</TableHead>
+                                        <TableHead className="text-right">Valor</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {processedData.enhancedSummary.salariosConfirmados.lista.map((item, index) => (
+                                        <TableRow key={index}>
+                                          <TableCell className="font-medium" data-testid={`confirmed-salary-date-${index}`}>
+                                            {item.data}
+                                          </TableCell>
+                                          <TableCell data-testid={`confirmed-salary-description-${index}`}>
+                                            <div className="flex items-center gap-2">
+                                              {item.historico}
+                                              <Badge variant="secondary" className="text-xs">Confirmado</Badge>
+                                            </div>
+                                          </TableCell>
+                                          <TableCell className="text-right font-medium text-red-600" data-testid={`confirmed-salary-value-${index}`}>
+                                            {formatCurrencyBR(Math.abs(item.valor))}
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Salários Heurísticos */}
+                            {processedData.enhancedSummary.salariosHeuristicos.lista.length > 0 && (
+                              <div>
+                                <h4 className="text-sm font-semibold mb-3 text-yellow-600">Salários Heurísticos (Requer Revisão)</h4>
+                                <div className="rounded-md border">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Data</TableHead>
+                                        <TableHead>Histórico</TableHead>
+                                        <TableHead className="text-right">Valor</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {processedData.enhancedSummary.salariosHeuristicos.lista.map((item, index) => (
+                                        <TableRow key={index}>
+                                          <TableCell className="font-medium" data-testid={`heuristic-salary-date-${index}`}>
+                                            {item.data}
+                                          </TableCell>
+                                          <TableCell data-testid={`heuristic-salary-description-${index}`}>
+                                            <div className="flex items-center gap-2">
+                                              {item.historico}
+                                              <Badge variant="outline" className="text-xs text-yellow-600 border-yellow-600">Revisar</Badge>
+                                            </div>
+                                          </TableCell>
+                                          <TableCell className="text-right font-medium text-red-600" data-testid={`heuristic-salary-value-${index}`}>
+                                            {formatCurrencyBR(Math.abs(item.valor))}
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Total de Salários */}
+                            {(processedData.enhancedSummary.salariosConfirmados.lista.length > 0 || processedData.enhancedSummary.salariosHeuristicos.lista.length > 0) && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {processedData.enhancedSummary.salariosConfirmados.lista.length > 0 && (
+                                  <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                                    <span className="text-sm font-medium">Confirmados:</span>
+                                    <span className="text-lg font-bold text-green-600" data-testid="confirmed-salaries-category-total">
+                                      {formatCurrencyBR(Math.abs(processedData.enhancedSummary.salariosConfirmados.total))}
+                                    </span>
+                                  </div>
+                                )}
+                                {processedData.enhancedSummary.salariosHeuristicos.lista.length > 0 && (
+                                  <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg">
+                                    <span className="text-sm font-medium">Heurísticos:</span>
+                                    <span className="text-lg font-bold text-yellow-600" data-testid="heuristic-salaries-category-total">
+                                      {formatCurrencyBR(Math.abs(processedData.enhancedSummary.salariosHeuristicos.total))}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {processedData.enhancedSummary.salariosConfirmados.lista.length === 0 && processedData.enhancedSummary.salariosHeuristicos.lista.length === 0 && (
+                              <div className="text-center text-muted-foreground p-6">
+                                Nenhum salário detectado
+                              </div>
+                            )}
+                          </div>
+                        </TabsContent>
+
+                        <TabsContent value="movfinanceiras" className="space-y-4">
+                          <div className="rounded-md border">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Data</TableHead>
+                                  <TableHead>Histórico</TableHead>
+                                  <TableHead className="text-right">Valor</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {processedData.enhancedSummary.movimentacoesFinanceiras.lista.length === 0 ? (
+                                  <TableRow>
+                                    <TableCell colSpan={3} className="text-center text-muted-foreground">
+                                      Nenhuma movimentação financeira detectada
+                                    </TableCell>
+                                  </TableRow>
+                                ) : (
+                                  processedData.enhancedSummary.movimentacoesFinanceiras.lista.map((item, index) => (
+                                    <TableRow key={index}>
+                                      <TableCell className="font-medium" data-testid={`financial-movement-date-${index}`}>
+                                        {item.data}
+                                      </TableCell>
+                                      <TableCell data-testid={`financial-movement-description-${index}`}>
+                                        <div className="flex items-center gap-2">
+                                          {item.historico}
+                                          <Badge variant="secondary" className="text-xs">Não Operacional</Badge>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="text-right font-medium text-gray-600" data-testid={`financial-movement-value-${index}`}>
+                                        {formatCurrencyBR(item.valor)}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))
+                                )}
+                              </TableBody>
+                            </Table>
+                          </div>
+                          {processedData.enhancedSummary.movimentacoesFinanceiras.lista.length > 0 && (
+                            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-950/20 rounded-lg">
+                              <span className="text-sm font-medium">Total de Movimentações:</span>
+                              <span className="text-lg font-bold text-gray-600" data-testid="financial-movements-category-total">
+                                {formatCurrencyBR(Math.abs(processedData.enhancedSummary.movimentacoesFinanceiras.total))}
+                              </span>
+                            </div>
+                          )}
+                        </TabsContent>
+
+                        <TabsContent value="revisao" className="space-y-4">
+                          <div className="rounded-md border">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Data</TableHead>
+                                  <TableHead>Histórico</TableHead>
+                                  <TableHead className="text-right">Valor</TableHead>
+                                  <TableHead>Motivo da Revisão</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {processedData.enhancedSummary.filaRevisao.length === 0 ? (
+                                  <TableRow>
+                                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                                      Nenhum item na fila de revisão
+                                    </TableCell>
+                                  </TableRow>
+                                ) : (
+                                  processedData.enhancedSummary.filaRevisao.map((item, index) => (
+                                    <TableRow key={index}>
+                                      <TableCell className="font-medium" data-testid={`review-queue-date-${index}`}>
+                                        {item.data}
+                                      </TableCell>
+                                      <TableCell data-testid={`review-queue-description-${index}`}>
+                                        {item.historico}
+                                      </TableCell>
+                                      <TableCell className="text-right font-medium" data-testid={`review-queue-value-${index}`}>
+                                        {formatCurrencyBR(item.valor)}
+                                      </TableCell>
+                                      <TableCell data-testid={`review-queue-reason-${index}`}>
+                                        <Badge variant="outline" className="text-xs text-red-600 border-red-600">
+                                          {item.motivo}
+                                        </Badge>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))
+                                )}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </TabsContent>
+                      </Tabs>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Gráficos */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1468,7 +1950,171 @@ export default function GastosBasilePage() {
             </Card>
           </TabsContent>
 
-          {/* Tab 3: Gasto Anual */}
+          {/* Tab 3: Dicionários */}
+          <TabsContent value="dicionarios" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Edit className="h-5 w-5" />
+                  Gestão de Dicionários
+                </CardTitle>
+                <CardDescription>
+                  Configure listas de funcionários e fornecedores para melhor classificação automática
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Lista de Funcionários */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Funcionários</CardTitle>
+                      <CardDescription>
+                        Lista de nomes de funcionários para identificação automática de salários
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="funcionarios-input">Lista de Funcionários (um por linha)</Label>
+                          <Textarea
+                            id="funcionarios-input"
+                            placeholder="João Silva Santos&#10;Maria Oliveira Costa&#10;Pedro Souza Lima"
+                            className="min-h-[200px] font-mono text-sm"
+                            value={dictionariesText.funcionarios}
+                            onChange={(e) => updateFuncionarios(e.target.value)}
+                            data-testid="textarea-funcionarios"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-sm text-muted-foreground">
+                          <span>{funcionarios.length} funcionários cadastrados</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => updateFuncionarios('')}
+                            data-testid="button-clear-funcionarios"
+                          >
+                            Limpar Lista
+                          </Button>
+                        </div>
+                        {funcionarios.length > 0 && (
+                          <div className="p-3 bg-muted/50 rounded-lg">
+                            <span className="text-sm font-medium">Prévia:</span>
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {funcionarios.slice(0, 5).map((nome, index) => (
+                                <Badge key={index} variant="secondary" className="text-xs">
+                                  {nome}
+                                </Badge>
+                              ))}
+                              {funcionarios.length > 5 && (
+                                <Badge variant="secondary" className="text-xs">+{funcionarios.length - 5} mais</Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Lista de Fornecedores */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Fornecedores</CardTitle>
+                      <CardDescription>
+                        Lista de fornecedores conhecidos para melhor categorização
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="fornecedores-input">Lista de Fornecedores (um por linha)</Label>
+                          <Textarea
+                            id="fornecedores-input"
+                            placeholder="MEDICA LTDA&#10;EQUIPAMENTOS MEDICOS SA&#10;FORNECEDOR HOSPITALAR"
+                            className="min-h-[200px] font-mono text-sm"
+                            value={dictionariesText.fornecedores}
+                            onChange={(e) => updateFornecedores(e.target.value)}
+                            data-testid="textarea-fornecedores"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-sm text-muted-foreground">
+                          <span>{fornecedores.length} fornecedores cadastrados</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => updateFornecedores('')}
+                            data-testid="button-clear-fornecedores"
+                          >
+                            Limpar Lista
+                          </Button>
+                        </div>
+                        {fornecedores.length > 0 && (
+                          <div className="p-3 bg-muted/50 rounded-lg">
+                            <span className="text-sm font-medium">Prévia:</span>
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {fornecedores.slice(0, 5).map((nome, index) => (
+                                <Badge key={index} variant="secondary" className="text-xs">
+                                  {nome}
+                                </Badge>
+                              ))}
+                              {fornecedores.length > 5 && (
+                                <Badge variant="secondary" className="text-xs">+{fornecedores.length - 5} mais</Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Ajuda e Instruções */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Info className="h-5 w-5" />
+                      Como Usar os Dicionários
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div className="space-y-2">
+                        <h4 className="font-semibold">Funcionários:</h4>
+                        <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                          <li>Digite um nome completo por linha</li>
+                          <li>Use a grafia exata que aparece no extrato</li>
+                          <li>PIX para esses nomes serão classificados como salário</li>
+                          <li>Exemplo: "JOÃO SILVA SANTOS"</li>
+                        </ul>
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="font-semibold">Fornecedores:</h4>
+                        <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                          <li>Digite o nome da empresa por linha</li>
+                          <li>Inclua variações comuns do nome</li>
+                          <li>Transacões serão marcadas como fornecedor conhecido</li>
+                          <li>Exemplo: "EMPRESA MEDICA LTDA"</li>
+                        </ul>
+                      </div>
+                    </div>
+                    <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm">
+                          <p className="font-medium text-blue-700 dark:text-blue-300">Dica:</p>
+                          <p className="text-blue-600 dark:text-blue-400">
+                            Os dicionários são aplicados em tempo real ao processar novos arquivos. 
+                            Para reaplicar em dados já processados, faça o upload do arquivo novamente.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Tab 4: Gasto Anual */}
           <TabsContent value="gasto-anual" className="space-y-6">
             {/* Filtros */}
             <Card>
@@ -1776,34 +2422,87 @@ export default function GastosBasilePage() {
                           <TableHead>Data</TableHead>
                           <TableHead>Histórico</TableHead>
                           <TableHead>Categoria</TableHead>
+                          <TableHead>Classificação</TableHead>
                           <TableHead className="text-right">Valor</TableHead>
+                          <TableHead>Flags</TableHead>
                           <TableHead>Origem</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {bankTransactions.slice(0, 50).map((transaction: BankTransactionPersistent) => (
-                          <TableRow key={transaction.id}>
-                            <TableCell className="font-mono text-sm">
-                              {new Date(transaction.dateISO).toLocaleDateString('pt-BR')}
-                            </TableCell>
-                            <TableCell className="max-w-0 truncate" title={transaction.historico}>
-                              {transaction.historico}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={transaction.ehOperacional ? "default" : "secondary"}>
-                                {transaction.categoria}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className={`text-right font-medium ${Number(transaction.valor) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {formatCurrencyBR(Number(transaction.valor))}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">
-                                {transaction.source === 'bank_import' ? 'Extrato' : transaction.source}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {bankTransactions.slice(0, 50).map((transaction: BankTransactionPersistent) => {
+                          // Aplica classificação avançada para o display
+                          const advancedClassification = classifyTransactionAdvanced(
+                            transaction.historico,
+                            Number(transaction.valor),
+                            transaction.dateISO,
+                            funcionarios,
+                            fornecedores
+                          );
+                          
+                          // Define classe de cor baseada na classificação
+                          let badgeColor = 'border-gray-400 text-gray-600';
+                          if (advancedClassification.ehMovtoFinanceiro) {
+                            badgeColor = 'border-gray-400 text-gray-600';
+                          } else if (advancedClassification.ehImposto) {
+                            badgeColor = 'border-blue-400 text-blue-600';
+                          } else if (advancedClassification.salarioConfirmado) {
+                            badgeColor = 'border-green-400 text-green-600';
+                          } else if (advancedClassification.ehSalarioHeuristico) {
+                            badgeColor = 'border-yellow-400 text-yellow-600';
+                          }
+                          
+                          return (
+                            <TableRow key={transaction.id}>
+                              <TableCell className="font-mono text-sm">
+                                {new Date(transaction.dateISO).toLocaleDateString('pt-BR')}
+                              </TableCell>
+                              <TableCell className="max-w-0 truncate" title={transaction.historico}>
+                                {transaction.historico}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={transaction.ehOperacional ? "default" : "secondary"}>
+                                  {transaction.categoria}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge 
+                                  variant={advancedClassification.needsReview ? "destructive" : "outline"}
+                                  className={`text-xs ${badgeColor}`}
+                                  data-testid={`classification-badge-${transaction.id}`}
+                                >
+                                  {advancedClassification.classificacaoFinal}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className={`text-right font-medium ${Number(transaction.valor) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {formatCurrencyBR(Number(transaction.valor))}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1">
+                                  {advancedClassification.ehMovtoFinanceiro && (
+                                    <Badge variant="secondary" className="text-xs">Financ.</Badge>
+                                  )}
+                                  {advancedClassification.ehImposto && (
+                                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">Imposto</Badge>
+                                  )}
+                                  {advancedClassification.salarioConfirmado && (
+                                    <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">Salário</Badge>
+                                  )}
+                                  {advancedClassification.ehSalarioHeuristico && !advancedClassification.salarioConfirmado && (
+                                    <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-700">PIX?</Badge>
+                                  )}
+                                  {advancedClassification.needsReview && (
+                                    <Badge variant="destructive" className="text-xs">Revisar</Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline">
+                                  {transaction.source === 'bank_import' ? 'Extrato' : transaction.source}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                     

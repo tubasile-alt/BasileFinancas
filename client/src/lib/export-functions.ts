@@ -149,28 +149,52 @@ export function convertToCSV(data: any[], options: CSVOptions = {}): string {
 // ========================================================================================
 
 /**
- * Exporta extrato padronizado de transações classificadas
+ * Exporta extrato padronizado de transações classificadas com dados avançados
  */
 export async function exportExtratoPadronizado(
   transactions: ClassifiedTransaction[],
-  config: ExportConfig
+  config: ExportConfig,
+  funcionarios: string[] = [],
+  fornecedores: string[] = []
 ): Promise<ExportResult> {
   try {
+    // Importa funções de classificação avançada
+    const { classifyTransactionAdvanced } = await import('./classification-rules');
+    
     const filename = generateStandardFilename('extrato_padronizado', config.ano, config.mes, 'csv');
 
-    // Prepara dados para CSV com formatação brasileira
-    const csvData = transactions.map(transaction => ({
-      'Data': formatDateBR(transaction.dateISO),
-      'Histórico': transaction.historico,
-      'Documento': transaction.documento || '',
-      'Valor': formatNumberBR(transaction.valor),
-      'Saldo': transaction.saldo ? formatNumberBR(transaction.saldo) : '',
-      'Categoria': transaction.categoria,
-      'Operacional': transaction.ehOperacional ? 'Sim' : 'Não',
-      'Mês': transaction.mes,
-      'Ano': transaction.ano,
-      'Semana ISO': transaction.isoWeek
-    }));
+    // Prepara dados para CSV com formatação brasileira e classificação avançada
+    const csvData = transactions.map(transaction => {
+      // Aplica classificação avançada para cada transação
+      const advancedClassification = classifyTransactionAdvanced(
+        transaction.historico,
+        transaction.valor,
+        transaction.dateISO,
+        funcionarios,
+        fornecedores
+      );
+      
+      return {
+        'Data': formatDateBR(transaction.dateISO),
+        'Histórico': transaction.historico,
+        'Documento': transaction.documento || '',
+        'Valor': formatNumberBR(transaction.valor),
+        'Saldo': transaction.saldo ? formatNumberBR(transaction.saldo) : '',
+        'Categoria': transaction.categoria,
+        'Operacional': transaction.ehOperacional ? 'Sim' : 'Não',
+        'Classificacao_Final': advancedClassification.classificacaoFinal,
+        'Eh_MovtoFinanceiro': advancedClassification.ehMovtoFinanceiro ? 'Sim' : 'Não',
+        'Eh_Imposto': advancedClassification.ehImposto ? 'Sim' : 'Não',
+        'Eh_SalarioConfirmado': advancedClassification.salarioConfirmado ? 'Sim' : 'Não',
+        'Eh_SalarioHeuristico': advancedClassification.ehSalarioHeuristico ? 'Sim' : 'Não',
+        'Precisa_Revisao': advancedClassification.needsReview ? 'Sim' : 'Não',
+        'Motivo_Revisao': advancedClassification.reviewReason || '',
+        'Score_Confianca': formatNumberBR(advancedClassification.confidenceScore * 100, 1) + '%',
+        'Mês': transaction.mes,
+        'Ano': transaction.ano,
+        'Semana ISO': transaction.isoWeek
+      };
+    });
 
     const csvContent = convertToCSV(csvData);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -613,6 +637,8 @@ export interface CompleteExportData {
   weeklyCashFlow: WeeklyCashFlow[];
   topExpenses: TopTransaction[];
   topRevenues: TopTransaction[];
+  funcionarios?: string[];
+  fornecedores?: string[];
 }
 
 /**
@@ -641,7 +667,12 @@ export async function exportAllReports(
     // CSV Exports
     if (formats.includeCSV) {
       const csvExports = await Promise.all([
-        exportExtratoPadronizado(data.transactions, config),
+        exportExtratoPadronizado(
+          data.transactions, 
+          config,
+          data.funcionarios || [],
+          data.fornecedores || []
+        ),
         exportCategorias(data.categoryTotals, config),
         exportFluxoSemanal(data.weeklyCashFlow, config),
         exportTop10Despesas(data.topExpenses, config),
@@ -727,19 +758,39 @@ export async function exportAllReportsAsZip(
       throw new Error('Erro ao criar pasta no arquivo ZIP');
     }
 
-    // 1. Extrato Padronizado (CSV)
-    const extratoData = data.transactions.map(transaction => ({
-      'Data': formatDateBR(transaction.dateISO),
-      'Histórico': transaction.historico,
-      'Documento': transaction.documento || '',
-      'Valor': formatNumberBR(transaction.valor),
-      'Saldo': transaction.saldo ? formatNumberBR(transaction.saldo) : '',
-      'Categoria': transaction.categoria,
-      'Operacional': transaction.ehOperacional ? 'Sim' : 'Não',
-      'Mês': transaction.mes,
-      'Ano': transaction.ano,
-      'Semana ISO': transaction.isoWeek
-    }));
+    // 1. Extrato Padronizado (CSV) com classificação avançada
+    const { classifyTransactionAdvanced } = await import('./classification-rules');
+    
+    const extratoData = data.transactions.map(transaction => {
+      const advancedClassification = classifyTransactionAdvanced(
+        transaction.historico,
+        transaction.valor,
+        transaction.dateISO,
+        data.funcionarios || [],
+        data.fornecedores || []
+      );
+      
+      return {
+        'Data': formatDateBR(transaction.dateISO),
+        'Histórico': transaction.historico,
+        'Documento': transaction.documento || '',
+        'Valor': formatNumberBR(transaction.valor),
+        'Saldo': transaction.saldo ? formatNumberBR(transaction.saldo) : '',
+        'Categoria': transaction.categoria,
+        'Operacional': transaction.ehOperacional ? 'Sim' : 'Não',
+        'Classificacao_Final': advancedClassification.classificacaoFinal,
+        'Eh_MovtoFinanceiro': advancedClassification.ehMovtoFinanceiro ? 'Sim' : 'Não',
+        'Eh_Imposto': advancedClassification.ehImposto ? 'Sim' : 'Não',
+        'Eh_SalarioConfirmado': advancedClassification.salarioConfirmado ? 'Sim' : 'Não',
+        'Eh_SalarioHeuristico': advancedClassification.ehSalarioHeuristico ? 'Sim' : 'Não',
+        'Precisa_Revisao': advancedClassification.needsReview ? 'Sim' : 'Não',
+        'Motivo_Revisao': advancedClassification.reviewReason || '',
+        'Score_Confianca': formatNumberBR(advancedClassification.confidenceScore * 100, 1) + '%',
+        'Mês': transaction.mes,
+        'Ano': transaction.ano,
+        'Semana ISO': transaction.isoWeek
+      };
+    });
     const extratoCSV = convertToCSV(extratoData);
     const extratoFilename = generateStandardFilename('extrato_padronizado', config.ano, config.mes, 'csv');
     folder.file(extratoFilename, extratoCSV);

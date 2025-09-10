@@ -10,9 +10,20 @@ import {
   type OperationalSummary,
   type CategoryTotal,
   type WeeklyCashFlow,
-  type TopTransaction
+  type TopTransaction,
+  type EnhancedOperationalSummary,
+  type AnnotatedTransaction,
+  type CategorizedTotal,
+  type CategorizedTransactionList,
+  type ReviewQueueItem,
+  type UXMessages
 } from '@shared/schema';
 import { getISOWeek, parseISO } from 'date-fns';
+import { 
+  classifyTransactionAdvanced,
+  type AdvancedClassificationResult,
+  type ClassificationDictionaries
+} from './classification-rules';
 
 /**
  * 1. Resumo Operacional
@@ -313,5 +324,391 @@ export function validateTransactionsForReports(transactions: ClassifiedTransacti
     isValid: true,
     warnings,
     errors
+  };
+}
+
+/**
+ * SISTEMA AVANÇADO DE RELATÓRIOS
+ * 
+ * Novas funções que usam a classificação avançada para gerar relatórios aprimorados
+ */
+
+/**
+ * Converte ClassifiedTransaction para AnnotatedTransaction usando classificação avançada
+ * 
+ * @param transactions - Array de transações classificadas
+ * @param funcionarios - Lista opcional de funcionários
+ * @param fornecedores - Lista opcional de fornecedores
+ * @returns Array de transações anotadas com flags avançadas
+ */
+export function annotateTransactions(
+  transactions: ClassifiedTransaction[],
+  funcionarios?: string[],
+  fornecedores?: string[]
+): AnnotatedTransaction[] {
+  return transactions.map(transaction => {
+    const advanced = classifyTransactionAdvanced(
+      transaction.historico,
+      transaction.valor,
+      transaction.dateISO,
+      funcionarios,
+      fornecedores
+    );
+
+    return {
+      ...transaction,
+      categoria: advanced.categoria,
+      ehOperacional: advanced.ehOperacional,
+      ehMovtoFinanceiro: advanced.ehMovtoFinanceiro,
+      ehImposto: advanced.ehImposto,
+      ehSalarioPalavra: advanced.ehSalarioPalavra,
+      ehSalarioHeuristico: advanced.ehSalarioHeuristico,
+      salarioConfirmado: advanced.salarioConfirmado,
+      classificacaoFinal: advanced.classificacaoFinal,
+      needsReview: advanced.needsReview
+    };
+  });
+}
+
+/**
+ * Gera lista categorizada de transações
+ * 
+ * @param transactions - Array de transações anotadas
+ * @param filterFn - Função para filtrar transações relevantes
+ * @returns Objeto com total e lista de transações
+ */
+function generateCategorizedList(
+  transactions: AnnotatedTransaction[],
+  filterFn: (t: AnnotatedTransaction) => boolean
+): CategorizedTotal {
+  const filtered = transactions.filter(filterFn);
+  
+  const total = filtered.reduce((sum, t) => sum + Math.abs(t.valor), 0);
+  
+  const lista: CategorizedTransactionList[] = filtered.map(t => ({
+    data: t.dateISO,
+    historico: t.historico,
+    valor: t.valor
+  }));
+
+  // Ordena por data (mais recente primeiro) e depois por valor absoluto (maior primeiro)
+  lista.sort((a, b) => {
+    const dateCompare = b.data.localeCompare(a.data);
+    if (dateCompare !== 0) return dateCompare;
+    return Math.abs(b.valor) - Math.abs(a.valor);
+  });
+
+  return { total, lista };
+}
+
+/**
+ * Gera fila de revisão com motivos específicos
+ * 
+ * @param transactions - Array de transações anotadas
+ * @returns Array de itens que precisam revisão
+ */
+function generateReviewQueue(transactions: AnnotatedTransaction[]): ReviewQueueItem[] {
+  const reviewQueue: ReviewQueueItem[] = [];
+
+  for (const transaction of transactions) {
+    if (!transaction.needsReview) continue;
+
+    let motivo = "";
+
+    if (transaction.ehSalarioHeuristico && !transaction.salarioConfirmado) {
+      motivo = "Possível salário detectado por heurística PIX - confirme se é funcionário";
+    } else if (transaction.categoria === "Despesa – PIX Enviado" && 
+               !transaction.ehSalarioHeuristico && 
+               !transaction.ehImposto && 
+               !transaction.ehMovtoFinanceiro) {
+      motivo = "PIX enviado sem classificação específica - verificar beneficiário";
+    } else if (transaction.categoria === "Outros") {
+      motivo = "Transação não classificada automaticamente - requer análise manual";
+    } else {
+      motivo = "Transação marcada para revisão pelo sistema de classificação";
+    }
+
+    reviewQueue.push({
+      data: transaction.dateISO,
+      historico: transaction.historico,
+      valor: transaction.valor,
+      motivo
+    });
+  }
+
+  // Ordena por data (mais recente primeiro) e depois por valor absoluto (maior primeiro)
+  reviewQueue.sort((a, b) => {
+    const dateCompare = b.data.localeCompare(a.data);
+    if (dateCompare !== 0) return dateCompare;
+    return Math.abs(b.valor) - Math.abs(a.valor);
+  });
+
+  return reviewQueue;
+}
+
+/**
+ * Gera mensagens UX para o usuário
+ * 
+ * @param impostos - Dados dos impostos
+ * @param salariosConfirmados - Dados dos salários confirmados
+ * @param salariosHeuristicos - Dados dos salários heurísticos
+ * @param movimentacoesFinanceiras - Dados das movimentações financeiras
+ * @param filaRevisao - Lista de itens para revisão
+ * @returns Objeto com mensagens formatadas
+ */
+function generateUXMessages(
+  impostos: CategorizedTotal,
+  salariosConfirmados: CategorizedTotal,
+  salariosHeuristicos: CategorizedTotal,
+  movimentacoesFinanceiras: CategorizedTotal,
+  filaRevisao: ReviewQueueItem[]
+): UXMessages {
+  const formatCurrency = (value: number) => 
+    `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  return {
+    impostos: `Impostos detectados: ${formatCurrency(impostos.total)}`,
+    salariosConfirmados: `Salários (confirmados): ${formatCurrency(salariosConfirmados.total)}`,
+    salariosHeuristicos: `Salários (heurístico): ${formatCurrency(salariosHeuristicos.total)} — revise e, se forem funcionários, inclua no funcionarios.csv`,
+    movimentacoesFinanceiras: "Movimentações financeiras foram excluídas do operacional.",
+    filaRevisao: filaRevisao.length > 0 ? 
+      `${filaRevisao.length} transação(ões) precisam de revisão manual` : 
+      undefined
+  };
+}
+
+/**
+ * FUNÇÃO PRINCIPAL: Resumo Operacional Avançado
+ * 
+ * Gera resumo completo usando o sistema avançado de classificação.
+ * Exclui movimentações financeiras dos cálculos operacionais.
+ * Inclui totais categorizados, listas detalhadas e fila de revisão.
+ * 
+ * @param transactions - Array de transações classificadas
+ * @param funcionarios - Lista opcional de funcionários conhecidos
+ * @param fornecedores - Lista opcional de fornecedores conhecidos
+ * @returns Resumo operacional avançado completo
+ */
+export function generateEnhancedOperationalSummary(
+  transactions: ClassifiedTransaction[],
+  funcionarios?: string[],
+  fornecedores?: string[]
+): EnhancedOperationalSummary {
+  // 1. Anota todas as transações com classificação avançada
+  const annotated = annotateTransactions(transactions, funcionarios, fornecedores);
+  
+  // 2. Filtra transações operacionais (exclui movimentações financeiras)
+  const operationalTransactions = annotated.filter(t => t.ehOperacional && !t.ehMovtoFinanceiro);
+  
+  // 3. Calcula totais operacionais básicos (mesmo algoritmo que a função original)
+  let entradasReais = 0;
+  let saidasReais = 0;
+  let numEntradas = 0;
+  let numSaidas = 0;
+
+  for (const transaction of operationalTransactions) {
+    if (transaction.valor > 0) {
+      entradasReais += transaction.valor;
+      numEntradas++;
+    } else if (transaction.valor < 0) {
+      saidasReais += Math.abs(transaction.valor);
+      numSaidas++;
+    }
+  }
+
+  const saldoLiquido = entradasReais - saidasReais;
+
+  // 4. Gera listas categorizadas
+  const impostos = generateCategorizedList(
+    annotated,
+    t => t.ehImposto
+  );
+
+  const salariosConfirmados = generateCategorizedList(
+    annotated,
+    t => t.salarioConfirmado || t.ehSalarioPalavra
+  );
+
+  const salariosHeuristicos = generateCategorizedList(
+    annotated,
+    t => t.ehSalarioHeuristico && !t.salarioConfirmado
+  );
+
+  const movimentacoesFinanceiras = generateCategorizedList(
+    annotated,
+    t => t.ehMovtoFinanceiro
+  );
+
+  // 5. Gera fila de revisão
+  const filaRevisao = generateReviewQueue(annotated);
+
+  return {
+    // Campos do OperationalSummary original
+    entradasReais,
+    saidasReais,
+    saldoLiquido,
+    numEntradas,
+    numSaidas,
+
+    // Novos campos avançados
+    impostos,
+    salariosConfirmados,
+    salariosHeuristicos,
+    movimentacoesFinanceiras,
+    filaRevisao
+  };
+}
+
+/**
+ * Gera mensagens UX para o resumo avançado
+ * 
+ * @param summary - Resumo operacional avançado
+ * @returns Mensagens formatadas para o usuário
+ */
+export function generateEnhancedUXMessages(summary: EnhancedOperationalSummary): UXMessages {
+  return generateUXMessages(
+    summary.impostos,
+    summary.salariosConfirmados,
+    summary.salariosHeuristicos,
+    summary.movimentacoesFinanceiras,
+    summary.filaRevisao
+  );
+}
+
+/**
+ * Versão aprimorada do relatório por categoria que usa classificação avançada
+ * 
+ * @param transactions - Array de transações classificadas
+ * @param funcionarios - Lista opcional de funcionários
+ * @param fornecedores - Lista opcional de fornecedores
+ * @returns Relatório por categoria com classificação avançada
+ */
+export function generateEnhancedCategoryReport(
+  transactions: ClassifiedTransaction[],
+  funcionarios?: string[],
+  fornecedores?: string[]
+): CategoryTotal[] {
+  // Usa classificação avançada para recategorizar
+  const annotated = annotateTransactions(transactions, funcionarios, fornecedores);
+  
+  // Aplica o mesmo algoritmo da função original, mas com as novas categorias
+  return generateCategoryReport(annotated);
+}
+
+/**
+ * Versão aprimorada das top despesas que usa classificação avançada
+ * 
+ * @param transactions - Array de transações classificadas
+ * @param funcionarios - Lista opcional de funcionários
+ * @param fornecedores - Lista opcional de fornecedores
+ * @returns Top 10 despesas com classificação avançada
+ */
+export function generateEnhancedTop10Expenses(
+  transactions: ClassifiedTransaction[],
+  funcionarios?: string[],
+  fornecedores?: string[]
+): TopTransaction[] {
+  // Usa classificação avançada
+  const annotated = annotateTransactions(transactions, funcionarios, fornecedores);
+  
+  // Aplica o mesmo algoritmo da função original
+  return generateTop10Expenses(annotated);
+}
+
+/**
+ * Versão aprimorada das top receitas que usa classificação avançada
+ * 
+ * @param transactions - Array de transações classificadas
+ * @param funcionarios - Lista opcional de funcionários
+ * @param fornecedores - Lista opcional de fornecedores
+ * @returns Top 10 receitas with advanced classification
+ */
+export function generateEnhancedTop10Revenues(
+  transactions: ClassifiedTransaction[],
+  funcionarios?: string[],
+  fornecedores?: string[]
+): TopTransaction[] {
+  // Usa classificação avançada
+  const annotated = annotateTransactions(transactions, funcionarios, fornecedores);
+  
+  // Aplica o mesmo algoritmo da função original
+  return generateTop10Revenues(annotated);
+}
+
+/**
+ * Versão aprimorada do fluxo de caixa semanal que usa classificação avançada
+ * 
+ * @param transactions - Array de transações classificadas
+ * @param funcionarios - Lista opcional de funcionários
+ * @param fornecedores - Lista opcional de fornecedores
+ * @returns Fluxo de caixa semanal com classificação avançada
+ */
+export function generateEnhancedWeeklyCashFlow(
+  transactions: ClassifiedTransaction[],
+  funcionarios?: string[],
+  fornecedores?: string[]
+): WeeklyCashFlow[] {
+  // Usa classificação avançada
+  const annotated = annotateTransactions(transactions, funcionarios, fornecedores);
+  
+  // Aplica o mesmo algoritmo da função original
+  return generateWeeklyCashFlow(annotated);
+}
+
+/**
+ * Estatísticas do sistema avançado para diagnóstico
+ */
+export function getEnhancedReportStats(
+  transactions: ClassifiedTransaction[],
+  funcionarios?: string[],
+  fornecedores?: string[]
+): {
+  totalTransactions: number;
+  operationalTransactions: number;
+  nonOperationalTransactions: number;
+  financialMovements: number;
+  taxes: number;
+  confirmedSalaries: number;
+  heuristicSalaries: number;
+  reviewQueue: number;
+  operationalRate: number;
+  categorizationDetails: {
+    movimentacoesFinanceiras: number;
+    impostos: number;
+    salariosConfirmados: number;
+    salariosHeuristicos: number;
+    precisamRevisao: number;
+  };
+} {
+  const annotated = annotateTransactions(transactions, funcionarios, fornecedores);
+  
+  const total = annotated.length;
+  const operational = annotated.filter(t => t.ehOperacional && !t.ehMovtoFinanceiro).length;
+  const nonOperational = total - operational;
+  const operationalRate = total > 0 ? (operational / total) * 100 : 0;
+  
+  const financialMovements = annotated.filter(t => t.ehMovtoFinanceiro).length;
+  const taxes = annotated.filter(t => t.ehImposto).length;
+  const confirmedSalaries = annotated.filter(t => t.salarioConfirmado || t.ehSalarioPalavra).length;
+  const heuristicSalaries = annotated.filter(t => t.ehSalarioHeuristico && !t.salarioConfirmado).length;
+  const reviewQueue = annotated.filter(t => t.needsReview).length;
+
+  return {
+    totalTransactions: total,
+    operationalTransactions: operational,
+    nonOperationalTransactions: nonOperational,
+    financialMovements,
+    taxes,
+    confirmedSalaries,
+    heuristicSalaries,
+    reviewQueue,
+    operationalRate,
+    categorizationDetails: {
+      movimentacoesFinanceiras: financialMovements,
+      impostos: taxes,
+      salariosConfirmados: confirmedSalaries,
+      salariosHeuristicos: heuristicSalaries,
+      precisamRevisao: reviewQueue
+    }
   };
 }

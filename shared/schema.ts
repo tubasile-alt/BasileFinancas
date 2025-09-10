@@ -175,6 +175,72 @@ export const topTransactionSchema = z.object({
 
 export type TopTransaction = z.infer<typeof topTransactionSchema>;
 
+// Enhanced Report Schemas (for advanced classification system)
+
+export const categorizedTransactionListSchema = z.object({
+  data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data deve estar no formato YYYY-MM-DD"),
+  historico: z.string().min(1),
+  valor: z.number(),
+});
+
+export type CategorizedTransactionList = z.infer<typeof categorizedTransactionListSchema>;
+
+export const reviewQueueItemSchema = z.object({
+  data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data deve estar no formato YYYY-MM-DD"),
+  historico: z.string().min(1),
+  valor: z.number(),
+  motivo: z.string().min(1),
+});
+
+export type ReviewQueueItem = z.infer<typeof reviewQueueItemSchema>;
+
+export const categorizedTotalSchema = z.object({
+  total: z.number(),
+  lista: z.array(categorizedTransactionListSchema),
+});
+
+export type CategorizedTotal = z.infer<typeof categorizedTotalSchema>;
+
+export const enhancedOperationalSummarySchema = z.object({
+  // Campos existentes do OperationalSummary
+  entradasReais: z.number().min(0),
+  saidasReais: z.number().min(0),
+  saldoLiquido: z.number(),
+  numEntradas: z.number().min(0),
+  numSaidas: z.number().min(0),
+  
+  // Novos campos obrigatórios
+  impostos: categorizedTotalSchema,
+  salariosConfirmados: categorizedTotalSchema,
+  salariosHeuristicos: categorizedTotalSchema,
+  movimentacoesFinanceiras: categorizedTotalSchema,
+  filaRevisao: z.array(reviewQueueItemSchema),
+});
+
+export type EnhancedOperationalSummary = z.infer<typeof enhancedOperationalSummarySchema>;
+
+export const annotatedTransactionSchema = classifiedTransactionSchema.extend({
+  ehMovtoFinanceiro: z.boolean(),
+  ehImposto: z.boolean(),
+  ehSalarioPalavra: z.boolean(),
+  ehSalarioHeuristico: z.boolean(),
+  salarioConfirmado: z.boolean(),
+  classificacaoFinal: z.string(),
+  needsReview: z.boolean(),
+});
+
+export type AnnotatedTransaction = z.infer<typeof annotatedTransactionSchema>;
+
+export const uxMessagesSchema = z.object({
+  impostos: z.string(),
+  salariosConfirmados: z.string(),
+  salariosHeuristicos: z.string(),
+  movimentacoesFinanceiras: z.string(),
+  filaRevisao: z.string().optional(),
+});
+
+export type UXMessages = z.infer<typeof uxMessagesSchema>;
+
 // Insert schemas for ephemeral types (using the same pattern as database types)
 export const insertBankTransactionSchema = bankTransactionSchema;
 export const insertClassifiedTransactionSchema = classifiedTransactionSchema;
@@ -182,6 +248,12 @@ export const insertOperationalSummarySchema = operationalSummarySchema;
 export const insertCategoryTotalSchema = categoryTotalSchema;
 export const insertWeeklyCashFlowSchema = weeklyCashFlowSchema;
 export const insertTopTransactionSchema = topTransactionSchema;
+export const insertCategorizedTransactionListSchema = categorizedTransactionListSchema;
+export const insertReviewQueueItemSchema = reviewQueueItemSchema;
+export const insertCategorizedTotalSchema = categorizedTotalSchema;
+export const insertEnhancedOperationalSummarySchema = enhancedOperationalSummarySchema;
+export const insertAnnotatedTransactionSchema = annotatedTransactionSchema;
+export const insertUXMessagesSchema = uxMessagesSchema;
 
 // Insert types
 export type InsertBankTransaction = z.infer<typeof insertBankTransactionSchema>;
@@ -190,6 +262,12 @@ export type InsertOperationalSummary = z.infer<typeof insertOperationalSummarySc
 export type InsertCategoryTotal = z.infer<typeof insertCategoryTotalSchema>;
 export type InsertWeeklyCashFlow = z.infer<typeof insertWeeklyCashFlowSchema>;
 export type InsertTopTransaction = z.infer<typeof insertTopTransactionSchema>;
+export type InsertCategorizedTransactionList = z.infer<typeof insertCategorizedTransactionListSchema>;
+export type InsertReviewQueueItem = z.infer<typeof insertReviewQueueItemSchema>;
+export type InsertCategorizedTotal = z.infer<typeof insertCategorizedTotalSchema>;
+export type InsertEnhancedOperationalSummary = z.infer<typeof insertEnhancedOperationalSummarySchema>;
+export type InsertAnnotatedTransaction = z.infer<typeof insertAnnotatedTransactionSchema>;
+export type InsertUXMessages = z.infer<typeof insertUXMessagesSchema>;
 
 // Annual Dashboard Schemas
 
