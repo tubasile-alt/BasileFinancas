@@ -50,6 +50,11 @@ Preferred communication style: Simple, everyday language.
 - **Data Export**: CSV export functionality with proper formatting
 - **Real-time Updates**: Automatic cache invalidation after mutations
 - **Responsive Design**: Mobile-first responsive layout
+- **Bank Statement Processing**: Intelligent parsing of XLSX files with automatic column mapping
+- **Advanced Transaction Classification**: Smart categorization using keywords and heuristics
+- **Manual Expense Tracking**: Cash expense entry system with categorization
+- **Annual Dashboard**: Year-over-year financial analysis with comparative charts
+- **Financial Controls**: Automated detection of taxes, salaries, and internal movements
 
 ### Development Workflow
 - **Monorepo Structure**: Client, server, and shared code in single repository
