@@ -2,10 +2,9 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Hospital, TrendingUp, Users, DollarSign, Calendar, CreditCard } from "lucide-react";
-import { Link } from "wouter";
+import { TrendingUp, Users, DollarSign, Calendar, CreditCard } from "lucide-react";
 import PasswordProtection from "@/components/password-protection";
+import { MainNavigation } from "@/components/main-navigation";
 import { getProcedureCost, MONTHLY_FIXED_COSTS } from "@/lib/procedure-costs";
 
 interface MonthlyReportData {
@@ -105,27 +104,7 @@ export default function MonthlyDashboard() {
   return (
     <PasswordProtection>
       <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="bg-primary text-primary-foreground shadow-sm border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
-              <Hospital className="h-6 w-6" />
-              <h1 className="text-xl font-semibold">Clínica Basile - Dashboard Mensal</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link href="/">
-                <Button variant="outline" size="sm" className="bg-primary-foreground text-primary hover:bg-primary-foreground/90">
-                  Dashboard Diário
-                </Button>
-              </Link>
-              <div className="bg-primary-foreground/10 hover:bg-primary-foreground/20 px-3 py-2 rounded-md text-sm font-medium transition-colors">
-                <span data-testid="text-current-user">Sistema Clínica</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+        <MainNavigation />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">

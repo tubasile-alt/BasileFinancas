@@ -71,3 +71,76 @@ export const insertDailyClosureSchema = createInsertSchema(dailyClosure).omit({
 
 export type InsertDailyClosure = z.infer<typeof insertDailyClosureSchema>;
 export type DailyClosure = typeof dailyClosure.$inferSelect;
+
+// Bank Transaction Schemas (ephemeral types for processing only)
+
+export const bankTransactionSchema = z.object({
+  dateISO: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data deve estar no formato YYYY-MM-DD"),
+  historico: z.string().min(1, "Histórico é obrigatório"),
+  documento: z.string().optional(),
+  valor: z.number(),
+  saldo: z.number().optional(),
+});
+
+export type BankTransaction = z.infer<typeof bankTransactionSchema>;
+
+export const classifiedTransactionSchema = bankTransactionSchema.extend({
+  categoria: z.string().min(1, "Categoria é obrigatória"),
+  ehOperacional: z.boolean(),
+  mes: z.number().min(1).max(12),
+  ano: z.number().min(1900),
+  isoWeek: z.number().min(1).max(53),
+});
+
+export type ClassifiedTransaction = z.infer<typeof classifiedTransactionSchema>;
+
+// Report Schemas
+
+export const operationalSummarySchema = z.object({
+  entradasReais: z.number().min(0),
+  saidasReais: z.number().min(0),
+  saldoLiquido: z.number(),
+  numEntradas: z.number().min(0),
+  numSaidas: z.number().min(0),
+});
+
+export type OperationalSummary = z.infer<typeof operationalSummarySchema>;
+
+export const categoryTotalSchema = z.object({
+  categoria: z.string().min(1),
+  valor: z.number(),
+});
+
+export type CategoryTotal = z.infer<typeof categoryTotalSchema>;
+
+export const weeklyCashFlowSchema = z.object({
+  semana: z.number().min(1).max(53),
+  valor: z.number(),
+});
+
+export type WeeklyCashFlow = z.infer<typeof weeklyCashFlowSchema>;
+
+export const topTransactionSchema = z.object({
+  data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data deve estar no formato YYYY-MM-DD"),
+  historico: z.string().min(1),
+  valor: z.number(),
+  categoria: z.string().min(1),
+});
+
+export type TopTransaction = z.infer<typeof topTransactionSchema>;
+
+// Insert schemas for ephemeral types (using the same pattern as database types)
+export const insertBankTransactionSchema = bankTransactionSchema;
+export const insertClassifiedTransactionSchema = classifiedTransactionSchema;
+export const insertOperationalSummarySchema = operationalSummarySchema;
+export const insertCategoryTotalSchema = categoryTotalSchema;
+export const insertWeeklyCashFlowSchema = weeklyCashFlowSchema;
+export const insertTopTransactionSchema = topTransactionSchema;
+
+// Insert types
+export type InsertBankTransaction = z.infer<typeof insertBankTransactionSchema>;
+export type InsertClassifiedTransaction = z.infer<typeof insertClassifiedTransactionSchema>;
+export type InsertOperationalSummary = z.infer<typeof insertOperationalSummarySchema>;
+export type InsertCategoryTotal = z.infer<typeof insertCategoryTotalSchema>;
+export type InsertWeeklyCashFlow = z.infer<typeof insertWeeklyCashFlowSchema>;
+export type InsertTopTransaction = z.infer<typeof insertTopTransactionSchema>;
