@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, type DailyClosure, type InsertDailyClosure, users, financialEntries, dailyClosure } from "@shared/schema";
+import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, type DailyClosure, type InsertDailyClosure, type BankTransactionPersistent, type InsertBankTransactionPersistent, type ManualExpense, type InsertManualExpense, users, financialEntries, dailyClosure, bankTransactions, manualExpenses } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, like, ilike } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -57,15 +57,33 @@ export interface IStorage {
   getDailyClosure(date: string): Promise<DailyClosure | undefined>;
   
   getUniquePatients(searchTerm?: string): Promise<Array<{ patientName: string; patientCode: string; }>>;
+  
+  // Bank Transactions CRUD
+  createBankTransaction(transaction: InsertBankTransactionPersistent): Promise<BankTransactionPersistent>;
+  getBankTransactions(startDate?: string, endDate?: string, categoria?: string): Promise<BankTransactionPersistent[]>;
+  getBankTransaction(id: string): Promise<BankTransactionPersistent | undefined>;
+  updateBankTransaction(id: string, transaction: Partial<InsertBankTransactionPersistent>): Promise<BankTransactionPersistent | undefined>;
+  deleteBankTransaction(id: string): Promise<boolean>;
+  
+  // Manual Expenses CRUD
+  createManualExpense(expense: InsertManualExpense): Promise<ManualExpense>;
+  getManualExpenses(startDate?: string, endDate?: string, categoria?: string, tipo?: string): Promise<ManualExpense[]>;
+  getManualExpense(id: string): Promise<ManualExpense | undefined>;
+  updateManualExpense(id: string, expense: Partial<InsertManualExpense>): Promise<ManualExpense | undefined>;
+  deleteManualExpense(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private financialEntries: Map<string, FinancialEntry>;
+  private bankTransactions: Map<string, BankTransactionPersistent>;
+  private manualExpenses: Map<string, ManualExpense>;
 
   constructor() {
     this.users = new Map();
     this.financialEntries = new Map();
+    this.bankTransactions = new Map();
+    this.manualExpenses = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -437,6 +455,108 @@ export class MemStorage implements IStorage {
     return patients
       .sort((a, b) => a.patientName.localeCompare(b.patientName))
       .slice(0, 10);
+  }
+
+  // Bank Transactions CRUD
+  async createBankTransaction(insertTransaction: InsertBankTransactionPersistent): Promise<BankTransactionPersistent> {
+    const id = randomUUID();
+    const transaction: BankTransactionPersistent = {
+      ...insertTransaction,
+      documento: insertTransaction.documento || null,
+      saldo: insertTransaction.saldo || null,
+      source: insertTransaction.source || "bank_import",
+      id,
+      createdAt: new Date()
+    };
+    this.bankTransactions.set(id, transaction);
+    return transaction;
+  }
+
+  async getBankTransactions(startDate?: string, endDate?: string, categoria?: string): Promise<BankTransactionPersistent[]> {
+    let transactions = Array.from(this.bankTransactions.values());
+    
+    if (startDate) {
+      transactions = transactions.filter(t => t.dateISO >= startDate);
+    }
+    
+    if (endDate) {
+      transactions = transactions.filter(t => t.dateISO <= endDate);
+    }
+    
+    if (categoria) {
+      transactions = transactions.filter(t => t.categoria === categoria);
+    }
+    
+    return transactions.sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+  }
+
+  async getBankTransaction(id: string): Promise<BankTransactionPersistent | undefined> {
+    return this.bankTransactions.get(id);
+  }
+
+  async updateBankTransaction(id: string, updateData: Partial<InsertBankTransactionPersistent>): Promise<BankTransactionPersistent | undefined> {
+    const existing = this.bankTransactions.get(id);
+    if (!existing) return undefined;
+    
+    const updated: BankTransactionPersistent = { ...existing, ...updateData };
+    this.bankTransactions.set(id, updated);
+    return updated;
+  }
+
+  async deleteBankTransaction(id: string): Promise<boolean> {
+    return this.bankTransactions.delete(id);
+  }
+
+  // Manual Expenses CRUD
+  async createManualExpense(insertExpense: InsertManualExpense): Promise<ManualExpense> {
+    const id = randomUUID();
+    const expense: ManualExpense = {
+      ...insertExpense,
+      observations: insertExpense.observations || null,
+      id,
+      createdAt: new Date()
+    };
+    this.manualExpenses.set(id, expense);
+    return expense;
+  }
+
+  async getManualExpenses(startDate?: string, endDate?: string, categoria?: string, tipo?: string): Promise<ManualExpense[]> {
+    let expenses = Array.from(this.manualExpenses.values());
+    
+    if (startDate) {
+      expenses = expenses.filter(e => e.dateISO >= startDate);
+    }
+    
+    if (endDate) {
+      expenses = expenses.filter(e => e.dateISO <= endDate);
+    }
+    
+    if (categoria) {
+      expenses = expenses.filter(e => e.categoria === categoria);
+    }
+    
+    if (tipo) {
+      expenses = expenses.filter(e => e.tipo === tipo);
+    }
+    
+    return expenses.sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+  }
+
+  async getManualExpense(id: string): Promise<ManualExpense | undefined> {
+    return this.manualExpenses.get(id);
+  }
+
+  async updateManualExpense(id: string, updateData: Partial<InsertManualExpense>): Promise<ManualExpense | undefined> {
+    const existing = this.manualExpenses.get(id);
+    if (!existing) return undefined;
+    
+    const updated: ManualExpense = { ...existing, ...updateData };
+    this.manualExpenses.set(id, updated);
+    return updated;
+  }
+
+  async deleteManualExpense(id: string): Promise<boolean> {
+    return this.manualExpenses.delete(id);
   }
 }
 
@@ -812,6 +932,110 @@ export class DatabaseStorage implements IStorage {
     
     const result = await query.limit(10);
     return result;
+  }
+
+  // Bank Transactions CRUD
+  async createBankTransaction(insertTransaction: InsertBankTransactionPersistent): Promise<BankTransactionPersistent> {
+    const [transaction] = await db
+      .insert(bankTransactions)
+      .values(insertTransaction)
+      .returning();
+    return transaction;
+  }
+
+  async getBankTransactions(startDate?: string, endDate?: string, categoria?: string): Promise<BankTransactionPersistent[]> {
+    const conditions = [];
+    
+    if (startDate) {
+      conditions.push(gte(bankTransactions.dateISO, startDate));
+    }
+    
+    if (endDate) {
+      conditions.push(lte(bankTransactions.dateISO, endDate));
+    }
+    
+    if (categoria) {
+      conditions.push(eq(bankTransactions.categoria, categoria));
+    }
+    
+    const transactions = conditions.length > 0 
+      ? await db.select().from(bankTransactions).where(and(...conditions))
+      : await db.select().from(bankTransactions);
+    
+    return transactions.sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+  }
+
+  async getBankTransaction(id: string): Promise<BankTransactionPersistent | undefined> {
+    const [transaction] = await db.select().from(bankTransactions).where(eq(bankTransactions.id, id));
+    return transaction || undefined;
+  }
+
+  async updateBankTransaction(id: string, updateData: Partial<InsertBankTransactionPersistent>): Promise<BankTransactionPersistent | undefined> {
+    const [updated] = await db
+      .update(bankTransactions)
+      .set(updateData)
+      .where(eq(bankTransactions.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteBankTransaction(id: string): Promise<boolean> {
+    const result = await db.delete(bankTransactions).where(eq(bankTransactions.id, id));
+    return (result.rowCount || 0) > 0;
+  }
+
+  // Manual Expenses CRUD
+  async createManualExpense(insertExpense: InsertManualExpense): Promise<ManualExpense> {
+    const [expense] = await db
+      .insert(manualExpenses)
+      .values(insertExpense)
+      .returning();
+    return expense;
+  }
+
+  async getManualExpenses(startDate?: string, endDate?: string, categoria?: string, tipo?: string): Promise<ManualExpense[]> {
+    const conditions = [];
+    
+    if (startDate) {
+      conditions.push(gte(manualExpenses.dateISO, startDate));
+    }
+    
+    if (endDate) {
+      conditions.push(lte(manualExpenses.dateISO, endDate));
+    }
+    
+    if (categoria) {
+      conditions.push(eq(manualExpenses.categoria, categoria));
+    }
+    
+    if (tipo) {
+      conditions.push(eq(manualExpenses.tipo, tipo));
+    }
+    
+    const expenses = conditions.length > 0 
+      ? await db.select().from(manualExpenses).where(and(...conditions))
+      : await db.select().from(manualExpenses);
+    
+    return expenses.sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+  }
+
+  async getManualExpense(id: string): Promise<ManualExpense | undefined> {
+    const [expense] = await db.select().from(manualExpenses).where(eq(manualExpenses.id, id));
+    return expense || undefined;
+  }
+
+  async updateManualExpense(id: string, updateData: Partial<InsertManualExpense>): Promise<ManualExpense | undefined> {
+    const [updated] = await db
+      .update(manualExpenses)
+      .set(updateData)
+      .where(eq(manualExpenses.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteManualExpense(id: string): Promise<boolean> {
+    const result = await db.delete(manualExpenses).where(eq(manualExpenses.id, id));
+    return (result.rowCount || 0) > 0;
   }
 }
 

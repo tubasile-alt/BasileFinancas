@@ -72,6 +72,52 @@ export const insertDailyClosureSchema = createInsertSchema(dailyClosure).omit({
 export type InsertDailyClosure = z.infer<typeof insertDailyClosureSchema>;
 export type DailyClosure = typeof dailyClosure.$inferSelect;
 
+// Persistent Bank Transactions Table
+export const bankTransactions = pgTable("bank_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dateISO: text("date_iso").notNull(),
+  historico: text("historico").notNull(),
+  documento: text("documento"),
+  valor: decimal("valor", { precision: 10, scale: 2 }).notNull(),
+  saldo: decimal("saldo", { precision: 10, scale: 2 }),
+  categoria: text("categoria").notNull(),
+  ehOperacional: integer("eh_operacional").notNull(), // 1 for true, 0 for false
+  mes: integer("mes").notNull(),
+  ano: integer("ano").notNull(),
+  isoWeek: integer("iso_week").notNull(),
+  source: text("source").notNull().default("bank_import"), // bank_import, manual, etc
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const insertBankTransactionPersistentSchema = createInsertSchema(bankTransactions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertBankTransactionPersistent = z.infer<typeof insertBankTransactionPersistentSchema>;
+export type BankTransactionPersistent = typeof bankTransactions.$inferSelect;
+
+// Manual Expenses Table
+export const manualExpenses = pgTable("manual_expenses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dateISO: text("date_iso").notNull(),
+  description: text("description").notNull(),
+  valor: decimal("valor", { precision: 10, scale: 2 }).notNull(),
+  categoria: text("categoria").notNull(),
+  tipo: text("tipo").notNull(), // entrada, saida
+  entryBy: text("entry_by").notNull(),
+  observations: text("observations"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const insertManualExpenseSchema = createInsertSchema(manualExpenses).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertManualExpense = z.infer<typeof insertManualExpenseSchema>;
+export type ManualExpense = typeof manualExpenses.$inferSelect;
+
 // Bank Transaction Schemas (ephemeral types for processing only)
 
 export const bankTransactionSchema = z.object({
