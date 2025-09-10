@@ -65,11 +65,11 @@ export interface ParseResult {
  * Configuração padrão para mapeamento de colunas
  */
 const DEFAULT_COLUMN_MAPPING: ColumnMapping = {
-  data: ['data', 'date', 'dt', 'dtposted', 'data_movimento', 'data mov', 'data_transacao'],
-  historico: ['historico', 'descricao', 'description', 'memo', 'name', 'desc', 'detalhes', 'observacao'],
-  documento: ['documento', 'document', 'fitid', 'id', 'numero', 'ref', 'referencia'],
-  valor: ['valor', 'value', 'amount', 'trnamt', 'vlr', 'montante', 'quantia'],
-  saldo: ['saldo', 'balance', 'bal', 'saldo_atual', 'saldo final']
+  data: ['data', 'date', 'dt', 'dtposted', 'data_movimento', 'data mov', 'data_transacao', 'movimento', 'lancamento'],
+  historico: ['historico', 'descricao', 'description', 'memo', 'name', 'desc', 'detalhes', 'observacao', 'complemento', 'especificacao'],
+  documento: ['documento', 'document', 'fitid', 'id', 'numero', 'ref', 'referencia', 'agencia', 'conta'],
+  valor: ['valor', 'value', 'amount', 'trnamt', 'vlr', 'montante', 'quantia', 'credito', 'debito', 'lancamento'],
+  saldo: ['saldo', 'balance', 'bal', 'saldo_atual', 'saldo final', 'saldo_final']
 };
 
 /**
@@ -145,6 +145,165 @@ function findColumnIndex(headers: string[], possibleNames: string[]): number {
   }
   
   return -1;
+}
+
+/**
+ * Analisa uma amostra de dados para detectar o tipo de cada coluna
+ */
+function analyzeColumnContent(data: any[], headers: string[]): {
+  dateColumns: number[];
+  valueColumns: number[];
+  textColumns: number[];
+} {
+  const dateColumns: number[] = [];
+  const valueColumns: number[] = [];
+  const textColumns: number[] = [];
+  
+  // Analisa as primeiras 10 linhas ou todas se menos de 10
+  const sampleSize = Math.min(10, data.length);
+  
+  for (let colIndex = 0; colIndex < headers.length; colIndex++) {
+    let dateCount = 0;
+    let valueCount = 0;
+    let textCount = 0;
+    let validSamples = 0;
+    
+    for (let rowIndex = 0; rowIndex < sampleSize; rowIndex++) {
+      const cellValue = data[rowIndex][headers[colIndex]];
+      
+      if (cellValue === undefined || cellValue === null || cellValue === '') {
+        continue;
+      }
+      
+      validSamples++;
+      const cellStr = cellValue.toString().trim();
+      
+      // Testa se é data
+      if (isDateLike(cellStr)) {
+        dateCount++;
+      }
+      // Testa se é valor monetário
+      else if (isValueLike(cellStr)) {
+        valueCount++;
+      }
+      // Testa se é texto descritivo
+      else if (isTextLike(cellStr)) {
+        textCount++;
+      }
+    }
+    
+    if (validSamples === 0) continue;
+    
+    // Define o tipo baseado na maioria (mais de 60%)
+    const threshold = validSamples * 0.6;
+    
+    if (dateCount >= threshold) {
+      dateColumns.push(colIndex);
+    } else if (valueCount >= threshold) {
+      valueColumns.push(colIndex);
+    } else if (textCount >= threshold) {
+      textColumns.push(colIndex);
+    }
+  }
+  
+  return { dateColumns, valueColumns, textColumns };
+}
+
+/**
+ * Verifica se uma string parece ser uma data
+ */
+function isDateLike(str: string): boolean {
+  // Formatos de data comuns
+  const datePatterns = [
+    /^\d{1,2}\/\d{1,2}\/\d{4}$/, // DD/MM/YYYY
+    /^\d{1,2}-\d{1,2}-\d{4}$/, // DD-MM-YYYY
+    /^\d{1,2}\.\d{1,2}\.\d{4}$/, // DD.MM.YYYY
+    /^\d{4}-\d{1,2}-\d{1,2}$/, // YYYY-MM-DD
+    /^\d{8}$/, // YYYYMMDD
+  ];
+  
+  return datePatterns.some(pattern => pattern.test(str));
+}
+
+/**
+ * Verifica se uma string parece ser um valor monetário
+ */
+function isValueLike(str: string): boolean {
+  // Remove espaços e caracteres comuns de formatação
+  const cleaned = str.replace(/[\s\$R]/g, '');
+  
+  // Padrões de valores monetários
+  const valuePatterns = [
+    /^-?\d+[\.,]\d{2}$/, // 123,45 ou 123.45
+    /^-?\d{1,3}([\.,]\d{3})*([\.,]\d{2})?$/, // 1.234,56 ou 1,234.56
+    /^-?\d+$/, // 123
+    /^\(\d+[\.,]?\d*\)$/, // (123,45) - valor negativo
+  ];
+  
+  return valuePatterns.some(pattern => pattern.test(cleaned));
+}
+
+/**
+ * Verifica se uma string parece ser texto descritivo
+ */
+function isTextLike(str: string): boolean {
+  // Texto com mais de 3 caracteres que não é data nem valor
+  return str.length > 3 && !isDateLike(str) && !isValueLike(str) && /[a-zA-Z]/.test(str);
+}
+
+/**
+ * Encontra colunas usando análise inteligente
+ */
+function findColumnsIntelligently(headers: string[], data: any[]): {
+  dataCol: number;
+  historicoCol: number;
+  valorCol: number;
+  documentoCol: number;
+  saldoCol: number;
+} {
+  // Primeiro tenta pelo nome do header
+  let dataCol = findColumnIndex(headers, DEFAULT_COLUMN_MAPPING.data);
+  let historicoCol = findColumnIndex(headers, DEFAULT_COLUMN_MAPPING.historico);
+  let valorCol = findColumnIndex(headers, DEFAULT_COLUMN_MAPPING.valor);
+  let documentoCol = findColumnIndex(headers, DEFAULT_COLUMN_MAPPING.documento);
+  let saldoCol = findColumnIndex(headers, DEFAULT_COLUMN_MAPPING.saldo);
+  
+  // Se não encontrou pelos nomes, usa análise de conteúdo
+  if (dataCol === -1 || historicoCol === -1 || valorCol === -1) {
+    const analysis = analyzeColumnContent(data, headers);
+    
+    // Atribui colunas baseado na análise
+    if (dataCol === -1 && analysis.dateColumns.length > 0) {
+      dataCol = analysis.dateColumns[0]; // Primeira coluna de data encontrada
+    }
+    
+    if (historicoCol === -1 && analysis.textColumns.length > 0) {
+      // Procura a coluna de texto mais longa (provavelmente o histórico)
+      let bestTextCol = analysis.textColumns[0];
+      let maxLength = 0;
+      
+      for (const colIndex of analysis.textColumns) {
+        let totalLength = 0;
+        for (let i = 0; i < Math.min(5, data.length); i++) {
+          const cellValue = data[i][headers[colIndex]];
+          if (cellValue) {
+            totalLength += cellValue.toString().length;
+          }
+        }
+        if (totalLength > maxLength) {
+          maxLength = totalLength;
+          bestTextCol = colIndex;
+        }
+      }
+      historicoCol = bestTextCol;
+    }
+    
+    if (valorCol === -1 && analysis.valueColumns.length > 0) {
+      valorCol = analysis.valueColumns[0]; // Primeira coluna de valor encontrada
+    }
+  }
+  
+  return { dataCol, historicoCol, valorCol, documentoCol, saldoCol };
 }
 
 /**
@@ -244,21 +403,21 @@ async function parseCSV(file: File): Promise<ParseResult> {
           // Pega os headers da primeira linha
           const headers = Object.keys(results.data[0] as Record<string, any>);
           
-          // Encontra os índices das colunas
-          const dataCol = findColumnIndex(headers, DEFAULT_COLUMN_MAPPING.data);
-          const historicoCol = findColumnIndex(headers, DEFAULT_COLUMN_MAPPING.historico);
-          const documentoCol = findColumnIndex(headers, DEFAULT_COLUMN_MAPPING.documento);
-          const valorCol = findColumnIndex(headers, DEFAULT_COLUMN_MAPPING.valor);
-          const saldoCol = findColumnIndex(headers, DEFAULT_COLUMN_MAPPING.saldo);
+          // Encontra os índices das colunas usando análise inteligente
+          const { dataCol, historicoCol, valorCol, documentoCol, saldoCol } = 
+            findColumnsIntelligently(headers, results.data as any[]);
           
           if (dataCol === -1) {
-            throw new Error('Coluna de data não encontrada. Headers disponíveis: ' + headers.join(', '));
+            throw new Error('Coluna de data não encontrada. Headers disponíveis: ' + headers.join(', ') + 
+              '. Verifique se o arquivo contém uma coluna com datas no formato DD/MM/YYYY ou similar.');
           }
           if (historicoCol === -1) {
-            throw new Error('Coluna de histórico não encontrada. Headers disponíveis: ' + headers.join(', '));
+            throw new Error('Coluna de histórico não encontrada. Headers disponíveis: ' + headers.join(', ') + 
+              '. Verifique se o arquivo contém uma coluna com descrições das transações.');
           }
           if (valorCol === -1) {
-            throw new Error('Coluna de valor não encontrada. Headers disponíveis: ' + headers.join(', '));
+            throw new Error('Coluna de valor não encontrada. Headers disponíveis: ' + headers.join(', ') + 
+              '. Verifique se o arquivo contém uma coluna com valores monetários.');
           }
           
           let validRows = 0;
@@ -351,21 +510,21 @@ async function parseXLSX(file: File): Promise<ParseResult> {
         // Pega os headers da primeira linha
         const headers = Object.keys(jsonData[0] as Record<string, any>);
         
-        // Encontra os índices das colunas
-        const dataCol = findColumnIndex(headers, DEFAULT_COLUMN_MAPPING.data);
-        const historicoCol = findColumnIndex(headers, DEFAULT_COLUMN_MAPPING.historico);
-        const documentoCol = findColumnIndex(headers, DEFAULT_COLUMN_MAPPING.documento);
-        const valorCol = findColumnIndex(headers, DEFAULT_COLUMN_MAPPING.valor);
-        const saldoCol = findColumnIndex(headers, DEFAULT_COLUMN_MAPPING.saldo);
+        // Encontra os índices das colunas usando análise inteligente
+        const { dataCol, historicoCol, valorCol, documentoCol, saldoCol } = 
+          findColumnsIntelligently(headers, jsonData as any[]);
         
         if (dataCol === -1) {
-          throw new Error('Coluna de data não encontrada. Headers disponíveis: ' + headers.join(', '));
+          throw new Error('Coluna de data não encontrada. Headers disponíveis: ' + headers.join(', ') + 
+            '. Verifique se o arquivo contém uma coluna com datas no formato DD/MM/YYYY ou similar.');
         }
         if (historicoCol === -1) {
-          throw new Error('Coluna de histórico não encontrada. Headers disponíveis: ' + headers.join(', '));
+          throw new Error('Coluna de histórico não encontrada. Headers disponíveis: ' + headers.join(', ') + 
+            '. Verifique se o arquivo contém uma coluna com descrições das transações.');
         }
         if (valorCol === -1) {
-          throw new Error('Coluna de valor não encontrada. Headers disponíveis: ' + headers.join(', '));
+          throw new Error('Coluna de valor não encontrada. Headers disponíveis: ' + headers.join(', ') + 
+            '. Verifique se o arquivo contém uma coluna com valores monetários.');
         }
         
         let validRows = 0;
