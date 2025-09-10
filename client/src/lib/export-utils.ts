@@ -50,7 +50,7 @@ export function exportToExcel(entries: FinancialEntry[], filename: string = 'ent
   const worksheet = XLSX.utils.json_to_sheet(worksheetData);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Entradas Financeiras");
-  
+
   // Ajustar largura das colunas
   const maxWidth = worksheetData.reduce((w, r) => Math.max(w, r.Paciente.length), 10);
   worksheet['!cols'] = [
@@ -71,7 +71,7 @@ export function exportToExcel(entries: FinancialEntry[], filename: string = 'ent
     { wch: 20 }, // Observações
     { wch: 15 }  // Lançado por
   ];
-  
+
   XLSX.writeFile(workbook, `${filename}-${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
@@ -83,9 +83,17 @@ export function formatCurrency(value: number | string): string {
   }).format(numValue);
 }
 
-export function formatDate(date: string | Date): string {
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
-  return dateObj.toLocaleDateString('pt-BR');
+export function formatDate(date: string | Date, options?: Intl.DateTimeFormatOptions): string {
+  const dateObj = typeof date === 'string' ? new Date(date + 'T00:00:00') : date;
+
+  const defaultOptions: Intl.DateTimeFormatOptions = {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'America/Sao_Paulo'
+  };
+
+  return dateObj.toLocaleDateString('pt-BR', { ...defaultOptions, ...options });
 }
 
 export function formatTime(date: string | Date): string {

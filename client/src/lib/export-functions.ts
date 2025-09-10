@@ -104,7 +104,7 @@ export function formatDateBR(date: string | Date): string {
  */
 export function convertToCSV(data: any[], options: CSVOptions = {}): string {
   const { separator = ';', includeHeaders = true } = options;
-  
+
   if (!data || data.length === 0) {
     return '';
   }
@@ -121,23 +121,23 @@ export function convertToCSV(data: any[], options: CSVOptions = {}): string {
   for (const row of data) {
     const values = headers.map(header => {
       const value = row[header];
-      
+
       // Trata valores nulos/undefined
       if (value === null || value === undefined) {
         return '';
       }
-      
+
       // Converte para string e escapa aspas
       const stringValue = String(value);
-      
+
       // Se contém separador, quebra de linha ou aspas, coloca entre aspas
       if (stringValue.includes(separator) || stringValue.includes('\n') || stringValue.includes('"')) {
         return `"${stringValue.replace(/"/g, '""')}"`;
       }
-      
+
       return stringValue;
     });
-    
+
     csvRows.push(values.join(separator));
   }
 
@@ -157,7 +157,7 @@ export async function exportExtratoPadronizado(
 ): Promise<ExportResult> {
   try {
     const filename = generateStandardFilename('extrato_padronizado', config.ano, config.mes, 'csv');
-    
+
     // Prepara dados para CSV com formatação brasileira
     const csvData = transactions.map(transaction => ({
       'Data': formatDateBR(transaction.dateISO),
@@ -195,7 +195,7 @@ export async function exportCategorias(
 ): Promise<ExportResult> {
   try {
     const filename = generateStandardFilename('categorias', config.ano, config.mes, 'csv');
-    
+
     const csvData = categoryTotals.map((category, index) => ({
       'Ranking': index + 1,
       'Categoria': category.categoria,
@@ -227,7 +227,7 @@ export async function exportFluxoSemanal(
 ): Promise<ExportResult> {
   try {
     const filename = generateStandardFilename('fluxo_semanal', config.ano, config.mes, 'csv');
-    
+
     const csvData = weeklyCashFlow.map(week => ({
       'Semana ISO': week.semana,
       'Valor Total': formatNumberBR(week.valor),
@@ -259,7 +259,7 @@ export async function exportTop10Despesas(
 ): Promise<ExportResult> {
   try {
     const filename = generateStandardFilename('top10_despesas', config.ano, config.mes, 'csv');
-    
+
     const csvData = topExpenses.map((expense, index) => ({
       'Ranking': index + 1,
       'Data': formatDateBR(expense.data),
@@ -293,7 +293,7 @@ export async function exportTop10Receitas(
 ): Promise<ExportResult> {
   try {
     const filename = generateStandardFilename('top10_receitas', config.ano, config.mes, 'csv');
-    
+
     const csvData = topRevenues.map((revenue, index) => ({
       'Ranking': index + 1,
       'Data': formatDateBR(revenue.data),
@@ -336,11 +336,11 @@ export async function exportToXLSX(
 
     // Cria worksheet
     const worksheet = XLSX.utils.json_to_sheet(data);
-    
+
     // Cria workbook
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-    
+
     // Ajusta largura das colunas automaticamente
     const headers = Object.keys(data[0]);
     const colWidths = headers.map(header => {
@@ -350,12 +350,12 @@ export async function exportToXLSX(
       );
       return { wch: Math.min(Math.max(maxLength, 10), 50) }; // Min 10, Max 50 caracteres
     });
-    
+
     worksheet['!cols'] = colWidths;
-    
+
     // Escreve arquivo
     XLSX.writeFile(workbook, filename);
-    
+
     return { success: true, filename };
   } catch (error) {
     return { 
@@ -473,16 +473,16 @@ export function generateOperationalSummaryText(
 ): string {
   const mesNome = format(new Date(ano, mes - 1, 1), 'MMMM', { locale: ptBR });
   const mesCapitalizado = mesNome.charAt(0).toUpperCase() + mesNome.slice(1);
-  
+
   let text = '';
-  
+
   // Cabeçalho
   text += '===============================================\n';
   text += '    RESUMO OPERACIONAL - CLÍNICA BASILE\n';
   text += '===============================================\n';
   text += `Período: ${mesCapitalizado} de ${ano}\n`;
   text += `Gerado em: ${format(new Date(), 'dd/MM/yyyy \'às\' HH:mm', { locale: ptBR })}\n\n`;
-  
+
   // Resumo Financeiro Principal
   text += '📊 RESUMO FINANCEIRO\n';
   text += '─────────────────────────────────────────────\n';
@@ -493,28 +493,28 @@ export function generateOperationalSummaryText(
   text += `📥 Número de Entradas:  ${summary.numEntradas.toString().padStart(15)}\n`;
   text += `📤 Número de Saídas:    ${summary.numSaidas.toString().padStart(15)}\n`;
   text += `📊 Total Operações:     ${(summary.numEntradas + summary.numSaidas).toString().padStart(15)}\n\n`;
-  
+
   // Análise de Performance
   const ticketMedioEntrada = summary.numEntradas > 0 ? summary.entradasReais / summary.numEntradas : 0;
   const ticketMedioSaida = summary.numSaidas > 0 ? summary.saidasReais / summary.numSaidas : 0;
   const margemOperacional = summary.entradasReais > 0 ? (summary.saldoLiquido / summary.entradasReais) * 100 : 0;
-  
+
   text += '📈 ANÁLISE DE PERFORMANCE\n';
   text += '─────────────────────────────────────────────\n';
   text += `💵 Ticket Médio (Entrada): ${formatCurrencyBR(ticketMedioEntrada).padStart(12)}\n`;
   text += `💸 Ticket Médio (Saída):   ${formatCurrencyBR(ticketMedioSaida).padStart(12)}\n`;
   text += `📊 Margem Operacional:     ${formatNumberBR(margemOperacional, 1).padStart(12)}%\n\n`;
-  
+
   // Top Categorias (se fornecido)
   if (additionalData?.categoryTotals) {
     const topDespesas = additionalData.categoryTotals
       .filter(cat => cat.valor < 0)
       .slice(0, 5);
-      
+
     const topReceitas = additionalData.categoryTotals
       .filter(cat => cat.valor > 0)
       .slice(0, 5);
-    
+
     if (topDespesas.length > 0) {
       text += '💸 TOP 5 CATEGORIAS DE DESPESAS\n';
       text += '─────────────────────────────────────────────\n';
@@ -524,7 +524,7 @@ export function generateOperationalSummaryText(
       });
       text += '\n';
     }
-    
+
     if (topReceitas.length > 0) {
       text += '💰 TOP 5 CATEGORIAS DE RECEITAS\n';
       text += '─────────────────────────────────────────────\n';
@@ -535,31 +535,31 @@ export function generateOperationalSummaryText(
       text += '\n';
     }
   }
-  
+
   // Fluxo Semanal Resumido (se fornecido)
   if (additionalData?.weeklyCashFlow && additionalData.weeklyCashFlow.length > 0) {
     text += '📅 FLUXO DE CAIXA SEMANAL\n';
     text += '─────────────────────────────────────────────\n';
-    
+
     const semanas = additionalData.weeklyCashFlow.slice(0, 8); // Primeiras 8 semanas
     semanas.forEach(semana => {
       const valor = formatCurrencyBR(semana.valor).padStart(15);
       const indicador = semana.valor >= 0 ? '📈' : '📉';
       text += `${indicador} Semana ${semana.semana.toString().padStart(2)}: ${valor}\n`;
     });
-    
+
     if (additionalData.weeklyCashFlow.length > 8) {
       text += `... e mais ${additionalData.weeklyCashFlow.length - 8} semanas\n`;
     }
     text += '\n';
   }
-  
+
   // Rodapé
   text += '===============================================\n';
   text += '            🏥 CLÍNICA BASILE 🏥\n';
   text += '      Sistema de Gestão Financeira v1.0\n';
   text += '===============================================\n';
-  
+
   return text;
 }
 
@@ -578,17 +578,17 @@ export async function exportResumoOperacional(
 ): Promise<ExportResult> {
   try {
     const filename = generateStandardFilename('resumo_operacional', config.ano, config.mes, 'txt');
-    
+
     const textContent = generateOperationalSummaryText(
       summary, 
       config.ano, 
       config.mes, 
       additionalData
     );
-    
+
     const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' });
     saveAs(blob, filename);
-    
+
     return { success: true, filename };
   } catch (error) {
     return { 
@@ -636,7 +636,7 @@ export async function exportAllReports(
   };
 }> {
   const results: ExportResult[] = [];
-  
+
   try {
     // CSV Exports
     if (formats.includeCSV) {
@@ -649,7 +649,7 @@ export async function exportAllReports(
       ]);
       results.push(...csvExports);
     }
-    
+
     // TXT Export
     if (formats.includeTXT) {
       const txtResult = await exportResumoOperacional(
@@ -664,13 +664,13 @@ export async function exportAllReports(
       );
       results.push(txtResult);
     }
-    
+
     // PNG Exports (requer IDs dos elementos DOM)
     if (formats.includePNG) {
       // Nota: PNG exports devem ser chamados individualmente com IDs específicos
       // Esta implementação serve como base para chamadas futuras
     }
-    
+
   } catch (error) {
     results.push({
       success: false,
@@ -678,10 +678,10 @@ export async function exportAllReports(
       error: error instanceof Error ? error.message : 'Erro no lote de exportações'
     });
   }
-  
+
   const successful = results.filter(r => r.success).length;
   const failed = results.filter(r => !r.success).length;
-  
+
   return {
     results,
     summary: {
@@ -722,7 +722,7 @@ export async function exportAllReportsAsZip(
     const zip = new JSZip();
     const folderName = generateFolderName(config.ano, config.mes).replace('outputs/', '');
     const folder = zip.folder(folderName);
-    
+
     if (!folder) {
       throw new Error('Erro ao criar pasta no arquivo ZIP');
     }
@@ -823,13 +823,13 @@ export async function exportAllReportsAsZip(
             useCORS: true,
             allowTaint: false
           });
-          
+
           const imageBlob = await new Promise<Blob>((resolve) => {
             canvas.toBlob((blob) => {
               if (blob) resolve(blob);
             }, 'image/png');
           });
-          
+
           const graficoCategoriasFilename = generateStandardFilename('grafico_despesas_categoria', config.ano, config.mes, 'png');
           folder.file(graficoCategoriasFilename, imageBlob);
         }
@@ -851,13 +851,13 @@ export async function exportAllReportsAsZip(
             useCORS: true,
             allowTaint: false
           });
-          
+
           const imageBlob = await new Promise<Blob>((resolve) => {
             canvas.toBlob((blob) => {
               if (blob) resolve(blob);
             }, 'image/png');
           });
-          
+
           const graficoFluxoFilename = generateStandardFilename('grafico_fluxo_semanal', config.ano, config.mes, 'png');
           folder.file(graficoFluxoFilename, imageBlob);
         }
@@ -868,14 +868,14 @@ export async function exportAllReportsAsZip(
 
     // Gera o arquivo ZIP
     const zipBlob = await zip.generateAsync({ type: 'blob' });
-    
+
     // Nome do arquivo ZIP conforme especificação
     const mesFormatado = config.mes.toString().padStart(2, '0');
     const zipFilename = `GastosClinicaBasile_${config.ano}-${mesFormatado}.zip`;
-    
+
     // Faz download do ZIP
     saveAs(zipBlob, zipFilename);
-    
+
     return {
       success: true,
       filename: zipFilename
@@ -904,17 +904,17 @@ export function validateExportData(data: any): {
 } {
   const errors: string[] = [];
   const warnings: string[] = [];
-  
+
   // Validações básicas
   if (!data) {
     errors.push('Dados não fornecidos para exportação');
     return { isValid: false, errors, warnings };
   }
-  
+
   if (Array.isArray(data) && data.length === 0) {
     warnings.push('Array de dados vazio - arquivo exportado será vazio');
   }
-  
+
   // Validação de estrutura para objetos
   if (typeof data === 'object' && !Array.isArray(data)) {
     const keys = Object.keys(data);
@@ -922,7 +922,7 @@ export function validateExportData(data: any): {
       warnings.push('Objeto de dados vazio');
     }
   }
-  
+
   return {
     isValid: errors.length === 0,
     errors,
@@ -940,27 +940,40 @@ export function checkBrowserSupport(): {
   recommendations: string[];
 } {
   const recommendations: string[] = [];
-  
+
   const supportsDownload = 'download' in document.createElement('a');
   const supportsBlob = typeof Blob !== 'undefined';
   const supportsCanvas = typeof HTMLCanvasElement !== 'undefined';
-  
+
   if (!supportsDownload) {
     recommendations.push('Navegador não suporta download direto - usar saveAs alternativo');
   }
-  
+
   if (!supportsBlob) {
     recommendations.push('Navegador não suporta Blob - funcionalidade limitada');
   }
-  
+
   if (!supportsCanvas) {
     recommendations.push('Navegador não suporta Canvas - exportação PNG indisponível');
   }
-  
+
   return {
     supportsDownload,
     supportsBlob,
     supportsCanvas,
     recommendations
   };
+}
+
+// Função para exportar relatório de categorias
+export function exportRelatorioCategorias(data: any, formato: 'xlsx' | 'pdf' = 'xlsx') {
+  console.log('Exportando relatório de categorias:', { data, formato });
+  // Implementação básica - pode ser expandida conforme necessário
+  if (formato === 'xlsx') {
+    // Lógica para Excel
+    console.log('Exportando para Excel...');
+  } else {
+    // Lógica para PDF
+    console.log('Exportando para PDF...');
+  }
 }

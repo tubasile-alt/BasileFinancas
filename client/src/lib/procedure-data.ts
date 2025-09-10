@@ -28,7 +28,8 @@ export const proceduresByDoctor: Record<string, ProcedureData[]> = {
     { name: 'contorno corporal (lift de coxa, dorso, braco)', value: 0 },
     { name: 'BICHECTOMIA', value: 1000 },
     { name: 'consulta', value: 100 },
-    { name: 'cirugia plástica pequena com sedação', value: 0 }
+    { name: 'cirugia plástica pequena com sedação', value: 0 },
+    { name: 'Morpheus', value: 0 }
   ],
   'dr-vinicius': [
     { name: 'Mastopexia com Protese', value: 0 },
@@ -126,7 +127,8 @@ export const proceduresByDoctor: Record<string, ProcedureData[]> = {
     { name: 'EXILIS FACE/OLHOS/PESCOÇO', value: 0 },
     { name: 'EXILIS CORPO', value: 0 },
     { name: 'COOLSCUPTING', value: 0 },
-    { name: 'ENTONE', value: 0 }
+    { name: 'ENTONE', value: 0 },
+    { name: 'morpheus pescoco', value: 0 }
   ],
   'fisioterapia': [
     { name: 'dlus 4 sessões', value: 0 },

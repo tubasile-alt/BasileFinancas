@@ -7,7 +7,8 @@ import { MainNavigation } from "@/components/main-navigation";
 
 export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState(() => {
-    return new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split('T')[0];
+    return today;
   });
 
   return (

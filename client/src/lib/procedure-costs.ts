@@ -1,3 +1,4 @@
+
 // Custos dos procedimentos que os médicos pagam para a clínica
 export interface ProcedureCostData {
   name: string;
@@ -120,7 +121,8 @@ export const procedureCostsByDoctor: Record<string, ProcedureCostData[]> = {
     { name: 'EXILIS FACE/OLHOS/PESCOÇO', cost: 0 },
     { name: 'EXILIS CORPO', cost: 0 },
     { name: 'COOLSCUPTING', cost: 0 },
-    { name: 'ENTONE', cost: 0 }
+    { name: 'ENTONE', cost: 0 },
+    { name: 'morpheus pescoco', cost: 0 }
   ]
 };
 
