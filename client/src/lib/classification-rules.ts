@@ -540,6 +540,21 @@ export function classifyTransaction(historico: string): ClassificationResult {
 }
 
 /**
+ * Interface para classificação aprendida (importada do schema)
+ */
+export interface LearnedClassification {
+  id: string;
+  historico: string;
+  categoria: string;
+  classificacaoFinal: string;
+  ehOperacional: number; // 1 for true, 0 for false (database format)
+  dataAprendizado: string;
+  vezesAplicado: number;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+}
+
+/**
  * Classificação avançada de transações bancárias
  * Implementa lógica de prioridade e detecção heurística
  * 
@@ -548,6 +563,7 @@ export function classifyTransaction(historico: string): ClassificationResult {
  * @param data - A data da transação (formato ISO ou string)
  * @param funcionarios - Lista opcional de funcionários
  * @param fornecedores - Lista opcional de fornecedores
+ * @param learnedClassifications - Lista opcional de classificações aprendidas
  * @returns Resultado completo da classificação avançada
  */
 export function classifyTransactionAdvanced(
@@ -555,7 +571,8 @@ export function classifyTransactionAdvanced(
   valor: number,
   data: string,
   funcionarios?: string[],
-  fornecedores?: string[]
+  fornecedores?: string[],
+  learnedClassifications?: LearnedClassification[]
 ): AdvancedClassificationResult {
   // Primeira verificação: transações a serem ignoradas
   if (shouldIgnoreTransaction(historico)) {
@@ -571,6 +588,36 @@ export function classifyTransactionAdvanced(
       needsReview: false,
       confidenceScore: 1.0
     };
+  }
+
+  // Segunda verificação: APRENDIZADO - PRIORIDADE MÁXIMA
+  if (learnedClassifications && learnedClassifications.length > 0) {
+    const normalizedHistorico = historico.toLowerCase().trim();
+    
+    // Busca match exato primeiro
+    const exactMatch = learnedClassifications.find(learned => 
+      learned.historico.toLowerCase().trim() === normalizedHistorico
+    );
+    
+    if (exactMatch) {
+      // Aplica classificação aprendida
+      const ehOperacional = exactMatch.ehOperacional === 1;
+      return {
+        categoria: exactMatch.categoria,
+        ehOperacional: ehOperacional,
+        ehMovtoFinanceiro: false, // Será definido baseado na categoria
+        ehImposto: exactMatch.categoria.includes("Impostos"),
+        ehSalarioPalavra: exactMatch.classificacaoFinal.includes("Salário"),
+        ehSalarioHeuristico: false,
+        salarioConfirmado: exactMatch.classificacaoFinal.includes("Salário"),
+        classificacaoFinal: `${exactMatch.classificacaoFinal} (aprendido)`,
+        needsReview: false, // Aprendizado tem alta confiança
+        confidenceScore: 0.98 // Muito alta confiança para aprendizado
+      };
+    }
+    
+    // TODO: Implementar busca fuzzy para similaridade alta (85%+)
+    // Por enquanto apenas match exato
   }
 
   // Executa todas as detecções

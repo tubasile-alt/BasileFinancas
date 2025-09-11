@@ -538,7 +538,7 @@ export default function GastosBasilePage() {
     }
   }, [reviewActionForm]);
 
-  const executeReviewAction = useCallback((action: ReviewAction, categoria: string, observations?: string) => {
+  const executeReviewAction = useCallback(async (action: ReviewAction, categoria: string, observations?: string) => {
     if (!processedData) return;
 
     setReviewState(prev => ({
@@ -547,8 +547,45 @@ export default function GastosBasilePage() {
       processingIndex: action.index
     }));
 
-    // Simular processamento (em uma implementação real, isso seria uma API call)
-    setTimeout(() => {
+    try {
+      // Mapear tipo de ação para categoria e classificação final
+      const actionToClassification = {
+        receita: {
+          categoria: 'Receita – PIX/Outros Recebimentos',
+          classificacaoFinal: 'Receita',
+          ehOperacional: 1
+        },
+        salario: {
+          categoria: 'Despesa – Folha de Pagamento',
+          classificacaoFinal: 'Salário',
+          ehOperacional: 1
+        },
+        fornecedor: {
+          categoria: 'Despesa – Boletos/Fornecedores',
+          classificacaoFinal: 'Fornecedor',
+          ehOperacional: 1
+        },
+        revisado: {
+          categoria: categoria, // Usa categoria passada como parâmetro
+          classificacaoFinal: 'Revisado',
+          ehOperacional: 1
+        }
+      };
+
+      const classification = actionToClassification[action.type];
+      
+      // Salvar aprendizado via API
+      const learnedClassification = {
+        historico: action.item.historico,
+        categoria: classification.categoria,
+        classificacaoFinal: classification.classificacaoFinal,
+        ehOperacional: classification.ehOperacional,
+        dataAprendizado: new Date().toISOString().split('T')[0], // Format: YYYY-MM-DD
+        vezesAplicado: 1
+      };
+
+      await apiRequest('POST', '/api/learned-classifications', learnedClassification);
+
       // Atualizar processedData removendo o item da fila de revisão
       setProcessedData(prev => {
         if (!prev) return prev;
@@ -578,9 +615,17 @@ export default function GastosBasilePage() {
 
       toast({
         title: `Item classificado como ${actionLabels[action.type]}`,
-        description: `Transação de ${formatCurrencyBR(action.item.valor)} foi reclassificada`,
+        description: `Transação foi reclassificada e aprendizado salvo automaticamente`,
       });
 
+    } catch (error) {
+      console.error('Erro ao salvar aprendizado:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao salvar aprendizado. A classificação foi aplicada mas não será lembrada.',
+        variant: 'destructive'
+      });
+    } finally {
       // Reset do estado
       setReviewState({
         isProcessing: false,
@@ -589,8 +634,7 @@ export default function GastosBasilePage() {
         pendingAction: null,
         selectedCategory: ''
       });
-
-    }, 1000); // Simula delay de processamento
+    }
   }, [processedData, toast]);
 
   const handleConfirmReviewAction = useCallback((data: ReviewActionFormData) => {
@@ -679,30 +723,52 @@ export default function GastosBasilePage() {
 
       setProcessingState(prev => ({ ...prev, processingProgress: 50 }));
 
-      // Etapa 3: Geração de relatórios
+      // Etapa 3: Carregar aprendizados para aplicação automática
+      let learnedClassifications: any[] = [];
+      try {
+        const response = await apiRequest('GET', '/api/learned-classifications');
+        learnedClassifications = await response.json() || [];
+        
+        if (learnedClassifications.length > 0) {
+          toast({
+            title: "Aprendizados carregados",
+            description: `${learnedClassifications.length} classificações aprendidas serão aplicadas automaticamente`,
+          });
+        }
+      } catch (error) {
+        console.warn('Não foi possível carregar aprendizados:', error);
+        // Continua processamento sem aprendizados
+      }
+
+      setProcessingState(prev => ({ ...prev, processingProgress: 60 }));
+
+      // Etapa 4: Geração de relatórios
       const summary = generateOperationalSummary(normalizationResult.transactions);
       const categoryReport = generateCategoryReport(normalizationResult.transactions);
       const weeklyCashFlow = generateWeeklyCashFlow(normalizationResult.transactions);
       const topDespesas = generateTop10Expenses(normalizationResult.transactions);
       const topReceitas = generateTop10Revenues(normalizationResult.transactions);
 
-      // Etapa 4: Classificação avançada e relatórios aprimorados
+      // Etapa 5: Classificação avançada e relatórios aprimorados (COM APRENDIZADO)
       const annotatedTransactions = annotateTransactions(
         normalizationResult.transactions,
         funcionarios,
-        fornecedores
+        fornecedores,
+        learnedClassifications
       );
 
       const enhancedSummary = generateEnhancedOperationalSummary(
         normalizationResult.transactions,
         funcionarios,
-        fornecedores
+        fornecedores,
+        learnedClassifications
       );
 
       const enhancedStats = getEnhancedReportStats(
         normalizationResult.transactions,
         funcionarios,
-        fornecedores
+        fornecedores,
+        learnedClassifications
       );
 
       // Gerar mensagens UX

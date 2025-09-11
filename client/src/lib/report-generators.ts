@@ -354,7 +354,8 @@ export function validateTransactionsForReports(transactions: ClassifiedTransacti
 export function annotateTransactions(
   transactions: ClassifiedTransaction[],
   funcionarios?: string[],
-  fornecedores?: string[]
+  fornecedores?: string[],
+  learnedClassifications?: any[]
 ): AnnotatedTransaction[] {
   return transactions.map(transaction => {
     const advanced = classifyTransactionAdvanced(
@@ -362,7 +363,8 @@ export function annotateTransactions(
       transaction.valor,
       transaction.dateISO,
       funcionarios,
-      fornecedores
+      fornecedores,
+      learnedClassifications
     );
 
     return {
@@ -502,10 +504,11 @@ function generateUXMessages(
 export function generateEnhancedOperationalSummary(
   transactions: ClassifiedTransaction[],
   funcionarios?: string[],
-  fornecedores?: string[]
+  fornecedores?: string[],
+  learnedClassifications?: any[]
 ): EnhancedOperationalSummary {
   // 1. Anota todas as transações com classificação avançada
-  const annotated = annotateTransactions(transactions, funcionarios, fornecedores);
+  const annotated = annotateTransactions(transactions, funcionarios, fornecedores, learnedClassifications);
   
   // 2. Filtra transações operacionais (exclui movimentações financeiras)
   const operationalTransactions = annotated.filter(t => t.ehOperacional && !t.ehMovtoFinanceiro);
@@ -656,10 +659,11 @@ export function generateEnhancedTop10Revenues(
 export function generateEnhancedWeeklyCashFlow(
   transactions: ClassifiedTransaction[],
   funcionarios?: string[],
-  fornecedores?: string[]
+  fornecedores?: string[],
+  learnedClassifications?: any[]
 ): WeeklyCashFlow[] {
   // Usa classificação avançada
-  const annotated = annotateTransactions(transactions, funcionarios, fornecedores);
+  const annotated = annotateTransactions(transactions, funcionarios, fornecedores, learnedClassifications);
   
   // Aplica o mesmo algoritmo da função original
   return generateWeeklyCashFlow(annotated);
@@ -671,7 +675,8 @@ export function generateEnhancedWeeklyCashFlow(
 export function getEnhancedReportStats(
   transactions: ClassifiedTransaction[],
   funcionarios?: string[],
-  fornecedores?: string[]
+  fornecedores?: string[],
+  learnedClassifications?: any[]
 ): {
   totalTransactions: number;
   operationalTransactions: number;
@@ -690,7 +695,7 @@ export function getEnhancedReportStats(
     precisamRevisao: number;
   };
 } {
-  const annotated = annotateTransactions(transactions, funcionarios, fornecedores);
+  const annotated = annotateTransactions(transactions, funcionarios, fornecedores, learnedClassifications);
   
   const total = annotated.length;
   const operational = annotated.filter(t => t.ehOperacional && !t.ehMovtoFinanceiro).length;
