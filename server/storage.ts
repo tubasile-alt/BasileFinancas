@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, type DailyClosure, type InsertDailyClosure, type BankTransactionPersistent, type InsertBankTransactionPersistent, type ManualExpense, type InsertManualExpense, type LearnedClassification, type InsertLearnedClassification, type AnnualSpendResponse, type AnnualSpendQuery, users, financialEntries, dailyClosure, bankTransactions, manualExpenses, learnedClassifications } from "@shared/schema";
+import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, type DailyClosure, type InsertDailyClosure, type BankTransactionPersistent, type InsertBankTransactionPersistent, type ManualExpense, type InsertManualExpense, type LearnedClassification, type InsertLearnedClassification, type AnnualSpendResponse, type AnnualSpendQuery, type SavedMonthlyReport, type InsertSavedMonthlyReport, users, financialEntries, dailyClosure, bankTransactions, manualExpenses, learnedClassifications, savedMonthlyReports } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, like, ilike, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -80,6 +80,14 @@ export interface IStorage {
   getLearnedClassifications(): Promise<LearnedClassification[]>;
   findLearnedByHistorico(historico: string): Promise<LearnedClassification | undefined>;
   updateLearnedClassificationUsage(id: string): Promise<LearnedClassification | undefined>;
+  
+  // Saved Monthly Reports CRUD
+  createSavedMonthlyReport(report: InsertSavedMonthlyReport): Promise<SavedMonthlyReport>;
+  getSavedMonthlyReports(): Promise<SavedMonthlyReport[]>;
+  getSavedMonthlyReport(id: string): Promise<SavedMonthlyReport | undefined>;
+  getSavedMonthlyReportByPeriod(mes: number, ano: number): Promise<SavedMonthlyReport | undefined>;
+  updateSavedMonthlyReport(id: string, report: Partial<InsertSavedMonthlyReport>): Promise<SavedMonthlyReport | undefined>;
+  deleteSavedMonthlyReport(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -88,6 +96,7 @@ export class MemStorage implements IStorage {
   private bankTransactions: Map<string, BankTransactionPersistent>;
   private manualExpenses: Map<string, ManualExpense>;
   private learnedClassifications: Map<string, LearnedClassification>;
+  private savedMonthlyReports: Map<string, SavedMonthlyReport>;
 
   constructor() {
     this.users = new Map();
@@ -95,6 +104,7 @@ export class MemStorage implements IStorage {
     this.bankTransactions = new Map();
     this.manualExpenses = new Map();
     this.learnedClassifications = new Map();
+    this.savedMonthlyReports = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -734,6 +744,78 @@ export class MemStorage implements IStorage {
     };
     this.learnedClassifications.set(id, updated);
     return updated;
+  }
+
+  // Saved Monthly Reports CRUD
+  async createSavedMonthlyReport(insertReport: InsertSavedMonthlyReport): Promise<SavedMonthlyReport> {
+    const id = randomUUID();
+    const report: SavedMonthlyReport = {
+      id,
+      mes: insertReport.mes,
+      ano: insertReport.ano,
+      nomeRelatorio: insertReport.nomeRelatorio,
+      dataProcessamento: insertReport.dataProcessamento,
+      transactionsData: insertReport.transactionsData as any,
+      enhancedSummaryData: insertReport.enhancedSummaryData as any,
+      categoryReportData: insertReport.categoryReportData as any,
+      weeklyCashFlowData: insertReport.weeklyCashFlowData as any,
+      topDespesasData: insertReport.topDespesasData as any,
+      topReceitasData: insertReport.topReceitasData as any,
+      totalTransactions: insertReport.totalTransactions,
+      totalAmount: insertReport.totalAmount,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.savedMonthlyReports.set(id, report);
+    return report;
+  }
+
+  async getSavedMonthlyReports(): Promise<SavedMonthlyReport[]> {
+    return Array.from(this.savedMonthlyReports.values())
+      .sort((a, b) => {
+        // Sort by year desc, then by month desc (most recent first)
+        if (a.ano !== b.ano) return b.ano - a.ano;
+        return b.mes - a.mes;
+      });
+  }
+
+  async getSavedMonthlyReport(id: string): Promise<SavedMonthlyReport | undefined> {
+    return this.savedMonthlyReports.get(id);
+  }
+
+  async getSavedMonthlyReportByPeriod(mes: number, ano: number): Promise<SavedMonthlyReport | undefined> {
+    return Array.from(this.savedMonthlyReports.values()).find(
+      (report) => report.mes === mes && report.ano === ano
+    );
+  }
+
+  async updateSavedMonthlyReport(id: string, updateData: Partial<InsertSavedMonthlyReport>): Promise<SavedMonthlyReport | undefined> {
+    const existing = this.savedMonthlyReports.get(id);
+    if (!existing) return undefined;
+
+    const updated: SavedMonthlyReport = {
+      id: existing.id,
+      mes: updateData.mes ?? existing.mes,
+      ano: updateData.ano ?? existing.ano,
+      nomeRelatorio: updateData.nomeRelatorio ?? existing.nomeRelatorio,
+      dataProcessamento: updateData.dataProcessamento ?? existing.dataProcessamento,
+      transactionsData: (updateData.transactionsData ?? existing.transactionsData) as any,
+      enhancedSummaryData: (updateData.enhancedSummaryData ?? existing.enhancedSummaryData) as any,
+      categoryReportData: (updateData.categoryReportData ?? existing.categoryReportData) as any,
+      weeklyCashFlowData: (updateData.weeklyCashFlowData ?? existing.weeklyCashFlowData) as any,
+      topDespesasData: (updateData.topDespesasData ?? existing.topDespesasData) as any,
+      topReceitasData: (updateData.topReceitasData ?? existing.topReceitasData) as any,
+      totalTransactions: updateData.totalTransactions ?? existing.totalTransactions,
+      totalAmount: updateData.totalAmount ?? existing.totalAmount,
+      createdAt: existing.createdAt,
+      updatedAt: new Date(),
+    };
+    this.savedMonthlyReports.set(id, updated);
+    return updated;
+  }
+
+  async deleteSavedMonthlyReport(id: string): Promise<boolean> {
+    return this.savedMonthlyReports.delete(id);
   }
 
   // Helper method for fuzzy matching
@@ -1433,6 +1515,65 @@ export class DatabaseStorage implements IStorage {
       .where(eq(learnedClassifications.id, id))
       .returning();
     return updated || undefined;
+  }
+
+  // Saved Monthly Reports CRUD
+  async createSavedMonthlyReport(insertReport: InsertSavedMonthlyReport): Promise<SavedMonthlyReport> {
+    const [report] = await db
+      .insert(savedMonthlyReports)
+      .values(insertReport as any)
+      .returning();
+    return report;
+  }
+
+  async getSavedMonthlyReports(): Promise<SavedMonthlyReport[]> {
+    const reports = await db
+      .select()
+      .from(savedMonthlyReports)
+      .orderBy(
+        sql`${savedMonthlyReports.ano} DESC, ${savedMonthlyReports.mes} DESC`
+      );
+    return reports;
+  }
+
+  async getSavedMonthlyReport(id: string): Promise<SavedMonthlyReport | undefined> {
+    const [report] = await db
+      .select()
+      .from(savedMonthlyReports)
+      .where(eq(savedMonthlyReports.id, id));
+    return report || undefined;
+  }
+
+  async getSavedMonthlyReportByPeriod(mes: number, ano: number): Promise<SavedMonthlyReport | undefined> {
+    const [report] = await db
+      .select()
+      .from(savedMonthlyReports)
+      .where(
+        and(
+          eq(savedMonthlyReports.mes, mes),
+          eq(savedMonthlyReports.ano, ano)
+        )
+      );
+    return report || undefined;
+  }
+
+  async updateSavedMonthlyReport(id: string, updateData: Partial<InsertSavedMonthlyReport>): Promise<SavedMonthlyReport | undefined> {
+    const [updated] = await db
+      .update(savedMonthlyReports)
+      .set({
+        ...updateData as any,
+        updatedAt: sql`CURRENT_TIMESTAMP`
+      })
+      .where(eq(savedMonthlyReports.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteSavedMonthlyReport(id: string): Promise<boolean> {
+    const result = await db
+      .delete(savedMonthlyReports)
+      .where(eq(savedMonthlyReports.id, id));
+    return (result.rowCount || 0) > 0;
   }
 
   // Helper method for fuzzy matching (same as MemStorage)

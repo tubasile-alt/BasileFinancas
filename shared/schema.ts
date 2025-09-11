@@ -118,6 +118,39 @@ export const insertManualExpenseSchema = createInsertSchema(manualExpenses).omit
 export type InsertManualExpense = z.infer<typeof insertManualExpenseSchema>;
 export type ManualExpense = typeof manualExpenses.$inferSelect;
 
+// Saved Monthly Reports Table
+export const savedMonthlyReports = pgTable("saved_monthly_reports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  mes: integer("mes").notNull(), // 1-12
+  ano: integer("ano").notNull(), // 2024, 2025, etc
+  nomeRelatorio: text("nome_relatorio").notNull(), // ex: "Janeiro 2025", "Março 2025"
+  dataProcessamento: text("data_processamento").notNull(), // quando foi salvo (ISO string)
+  
+  // Dados completos salvos em JSON
+  transactionsData: json("transactions_data").$type<ClassifiedTransaction[]>().notNull(),
+  enhancedSummaryData: json("enhanced_summary_data").$type<EnhancedOperationalSummary>().notNull(),
+  categoryReportData: json("category_report_data").$type<CategoryTotal[]>().notNull(),
+  weeklyCashFlowData: json("weekly_cash_flow_data").$type<WeeklyCashFlow[]>().notNull(),
+  topDespesasData: json("top_despesas_data").$type<TopTransaction[]>().notNull(),
+  topReceitasData: json("top_receitas_data").$type<TopTransaction[]>().notNull(),
+  
+  // Metadados adicionais
+  totalTransactions: integer("total_transactions").notNull(),
+  totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull(),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const insertSavedMonthlyReportSchema = createInsertSchema(savedMonthlyReports).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertSavedMonthlyReport = z.infer<typeof insertSavedMonthlyReportSchema>;
+export type SavedMonthlyReport = typeof savedMonthlyReports.$inferSelect;
+
 // Bank Transaction Schemas (ephemeral types for processing only)
 
 export const bankTransactionSchema = z.object({

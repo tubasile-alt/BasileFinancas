@@ -28,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { 
@@ -164,7 +165,14 @@ const manualEntrySchema = z.object({
   observations: z.string().optional(),
 });
 
+// Esquema para validação do formulário de salvamento de relatório
+const saveReportSchema = z.object({
+  nomeRelatorio: z.string().min(1, "Nome do relatório é obrigatório"),
+  observacoes: z.string().optional(),
+});
+
 type ManualEntryFormData = z.infer<typeof manualEntrySchema>;
+type SaveReportFormData = z.infer<typeof saveReportSchema>;
 
 // Schema para filtros históricos
 const historicalFiltersSchema = z.object({
@@ -246,6 +254,10 @@ export default function GastosBasilePage() {
     funcionarios: '',
     fornecedores: ''
   });
+  
+  // Estados para salvamento de relatórios
+  const [saveModalOpen, setSaveModalOpen] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
   // Estados para ações de revisão
   const [reviewState, setReviewState] = useState<ReviewState>({
@@ -289,6 +301,15 @@ export default function GastosBasilePage() {
     defaultValues: {
       categoria: '',
       observations: '',
+    }
+  });
+
+  // Form para salvamento de relatório
+  const saveReportForm = useForm<SaveReportFormData>({
+    resolver: zodResolver(saveReportSchema),
+    defaultValues: {
+      nomeRelatorio: '',
+      observacoes: '',
     }
   });
 
@@ -507,6 +528,52 @@ export default function GastosBasilePage() {
     onError: (error) => {
       toast({
         title: "Erro ao excluir lançamento",
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Mutation para salvar relatório mensal
+  const saveMonthlyReportMutation = useMutation({
+    mutationFn: async (data: SaveReportFormData) => {
+      if (!processedData) {
+        throw new Error("Nenhum dado processado para salvar");
+      }
+
+      const { detectedMonth, detectedYear } = processedData.metadata;
+      const monthName = months.find(m => m.value === detectedMonth)?.label || 'Mês';
+
+      const reportData = {
+        mes: detectedMonth,
+        ano: detectedYear,
+        nomeRelatorio: data.nomeRelatorio || `${monthName} ${detectedYear}`,
+        dataProcessamento: new Date().toISOString(),
+        transactionsData: processedData.transactions,
+        enhancedSummaryData: processedData.enhancedSummary,
+        categoryReportData: processedData.categoryReport,
+        weeklyCashFlowData: processedData.weeklyCashFlow,
+        topDespesasData: processedData.topDespesas,
+        topReceitasData: processedData.topReceitas,
+        totalTransactions: processedData.transactions.length,
+        totalAmount: processedData.enhancedSummary.saldoLiquido.toString(),
+      };
+
+      const response = await apiRequest('POST', '/api/saved-monthly-reports', reportData);
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Relatório salvo com sucesso!",
+        description: `Relatório "${data.nomeRelatorio}" foi salvo permanentemente`,
+      });
+      saveReportForm.reset();
+      setSaveModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/saved-monthly-reports'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao salvar relatório",
         description: error instanceof Error ? error.message : 'Erro desconhecido',
         variant: "destructive"
       });
@@ -871,6 +938,27 @@ export default function GastosBasilePage() {
 
     saveExtractMutation.mutate(processedData.transactions);
   }, [processedData, saveExtractMutation, toast]);
+
+  /**
+   * Handler para salvar relatório mensal
+   */
+  const handleSaveReport = useCallback((data: SaveReportFormData) => {
+    if (!processedData) {
+      toast({
+        title: "Nenhum relatório para salvar",
+        description: "Processe um arquivo primeiro",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    saveMonthlyReportMutation.mutate(data, {
+      onSettled: () => {
+        setIsSaving(false);
+      }
+    });
+  }, [processedData, saveMonthlyReportMutation, toast]);
 
   /**
    * Submeter lançamento manual
@@ -2153,6 +2241,14 @@ export default function GastosBasilePage() {
                         >
                           <Download className="h-4 w-4" />
                           Pacote ZIP Completo
+                        </Button>
+                        <Button
+                          onClick={() => setSaveModalOpen(true)}
+                          className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+                          data-testid="button-save-report"
+                        >
+                          <Save className="h-4 w-4" />
+                          Salvar Relatório
                         </Button>
                       </div>
 

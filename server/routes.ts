@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertFinancialEntrySchema, insertBankTransactionPersistentSchema, insertManualExpenseSchema, insertLearnedClassificationSchema, annualSpendQuerySchema } from "@shared/schema";
+import { insertFinancialEntrySchema, insertBankTransactionPersistentSchema, insertManualExpenseSchema, insertLearnedClassificationSchema, annualSpendQuerySchema, insertSavedMonthlyReportSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -406,6 +406,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error) {
       console.error("Error finding learned classification:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // SAVED MONTHLY REPORTS ROUTES
+
+  // Create saved monthly report
+  app.post("/api/saved-monthly-reports", async (req, res) => {
+    try {
+      const validatedData = insertSavedMonthlyReportSchema.parse(req.body);
+      const report = await storage.createSavedMonthlyReport(validatedData);
+      res.json(report);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Validation error", errors: error.errors });
+      } else {
+        console.error("Error creating saved monthly report:", error);
+        res.status(500).json({ message: "Internal server error" });
+      }
+    }
+  });
+
+  // Get all saved monthly reports
+  app.get("/api/saved-monthly-reports", async (req, res) => {
+    try {
+      const reports = await storage.getSavedMonthlyReports();
+      res.json(reports);
+    } catch (error) {
+      console.error("Error fetching saved monthly reports:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Get saved monthly report by period (year/month) - MUST come before :id route
+  app.get("/api/saved-monthly-reports/period/:year/:month", async (req, res) => {
+    try {
+      const year = parseInt(req.params.year);
+      const month = parseInt(req.params.month);
+      
+      if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
+        return res.status(400).json({ message: "Invalid year or month parameter" });
+      }
+
+      const report = await storage.getSavedMonthlyReportByPeriod(month, year);
+      if (!report) {
+        return res.status(404).json({ message: "Saved monthly report not found for this period" });
+      }
+      res.json(report);
+    } catch (error) {
+      console.error("Error fetching saved monthly report by period:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Get single saved monthly report
+  app.get("/api/saved-monthly-reports/:id", async (req, res) => {
+    try {
+      const report = await storage.getSavedMonthlyReport(req.params.id);
+      if (!report) {
+        return res.status(404).json({ message: "Saved monthly report not found" });
+      }
+      res.json(report);
+    } catch (error) {
+      console.error("Error fetching saved monthly report:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Update saved monthly report
+  app.patch("/api/saved-monthly-reports/:id", async (req, res) => {
+    try {
+      const updateData = insertSavedMonthlyReportSchema.partial().parse(req.body);
+      const report = await storage.updateSavedMonthlyReport(req.params.id, updateData);
+      if (!report) {
+        return res.status(404).json({ message: "Saved monthly report not found" });
+      }
+      res.json(report);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Validation error", errors: error.errors });
+      } else {
+        console.error("Error updating saved monthly report:", error);
+        res.status(500).json({ message: "Internal server error" });
+      }
+    }
+  });
+
+  // Delete saved monthly report
+  app.delete("/api/saved-monthly-reports/:id", async (req, res) => {
+    try {
+      const success = await storage.deleteSavedMonthlyReport(req.params.id);
+      if (!success) {
+        return res.status(404).json({ message: "Saved monthly report not found" });
+      }
+      res.json({ message: "Saved monthly report deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting saved monthly report:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
