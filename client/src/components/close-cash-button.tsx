@@ -57,7 +57,7 @@ export function CloseCashButton({ selectedDate }: CloseCashButtonProps) {
       const errorMessage = error.message === "Entry already exists" 
         ? "Caixa já foi fechado para este dia"
         : "Erro ao fechar caixa";
-      
+
       toast({
         title: "Erro ao fechar caixa",
         description: errorMessage,
@@ -93,7 +93,7 @@ export function CloseCashButton({ selectedDate }: CloseCashButtonProps) {
 
     const getPaymentMethodsText = (paymentDetails: any[]) => {
       if (!paymentDetails || paymentDetails.length === 0) return 'N/A';
-      
+
       return paymentDetails.map(payment => {
         const labels: Record<string, string> = {
           pix: 'PIX',
@@ -224,19 +224,19 @@ export function CloseCashButton({ selectedDate }: CloseCashButtonProps) {
         printWindow.document.open();
         printWindow.document.write(printContent);
         printWindow.document.close();
-        
+
         // Aguardar o carregamento antes de imprimir
         printWindow.onload = () => {
           printWindow.focus();
           printWindow.print();
         };
-        
+
         // Fallback se onload não funcionar
         setTimeout(() => {
           printWindow.focus();
           printWindow.print();
         }, 100);
-        
+
       } catch (error) {
         console.error('Erro na impressão:', error);
         toast({
@@ -348,7 +348,7 @@ export function CloseCashButton({ selectedDate }: CloseCashButtonProps) {
                 <Printer className="w-4 h-4 mr-2" />
                 Imprimir Relatório
               </Button>
-              
+
               <div className="flex space-x-2">
                 <Button
                   variant="outline"
