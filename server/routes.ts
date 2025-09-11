@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertFinancialEntrySchema, insertBankTransactionPersistentSchema, insertManualExpenseSchema, annualSpendQuerySchema } from "@shared/schema";
+import { insertFinancialEntrySchema, insertBankTransactionPersistentSchema, insertManualExpenseSchema, insertLearnedClassificationSchema, annualSpendQuerySchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -354,6 +354,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Error fetching annual spend data:", error);
         res.status(500).json({ message: "Internal server error" });
       }
+    }
+  });
+
+  // LEARNED CLASSIFICATIONS ROUTES
+
+  // Save a new learned classification
+  app.post("/api/learned-classifications", async (req, res) => {
+    try {
+      const validatedData = insertLearnedClassificationSchema.parse(req.body);
+      const classification = await storage.saveLearnedClassification(validatedData);
+      res.json(classification);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Validation error", errors: error.errors });
+      } else {
+        console.error("Error saving learned classification:", error);
+        res.status(500).json({ message: "Internal server error" });
+      }
+    }
+  });
+
+  // Get all learned classifications
+  app.get("/api/learned-classifications", async (req, res) => {
+    try {
+      const classifications = await storage.getLearnedClassifications();
+      res.json(classifications);
+    } catch (error) {
+      console.error("Error fetching learned classifications:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Find learned classification by historico (exact and fuzzy matching)
+  app.get("/api/learned-classifications/match", async (req, res) => {
+    try {
+      const { historico } = req.query;
+      
+      if (!historico || typeof historico !== 'string') {
+        return res.status(400).json({ message: "Parameter 'historico' is required" });
+      }
+
+      const match = await storage.findLearnedByHistorico(historico);
+      
+      if (match) {
+        // Update usage count when a match is found
+        await storage.updateLearnedClassificationUsage(match.id);
+        res.json(match);
+      } else {
+        res.status(404).json({ message: "No learned classification found for this historico" });
+      }
+    } catch (error) {
+      console.error("Error finding learned classification:", error);
+      res.status(500).json({ message: "Internal server error" });
     }
   });
 

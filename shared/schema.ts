@@ -269,6 +269,28 @@ export type InsertEnhancedOperationalSummary = z.infer<typeof insertEnhancedOper
 export type InsertAnnotatedTransaction = z.infer<typeof insertAnnotatedTransactionSchema>;
 export type InsertUXMessages = z.infer<typeof insertUXMessagesSchema>;
 
+// Learned Classifications Table
+export const learnedClassifications = pgTable("learned_classifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  historico: text("historico").notNull(),
+  categoria: text("categoria").notNull(),
+  classificacaoFinal: text("classificacao_final").notNull(),
+  ehOperacional: integer("eh_operacional").notNull(), // 1 for true, 0 for false
+  dataAprendizado: text("data_aprendizado").notNull(),
+  vezesAplicado: integer("vezes_aplicado").notNull().default(0),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const insertLearnedClassificationSchema = createInsertSchema(learnedClassifications).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertLearnedClassification = z.infer<typeof insertLearnedClassificationSchema>;
+export type LearnedClassification = typeof learnedClassifications.$inferSelect;
+
 // Annual Dashboard Schemas
 
 export const annualMonthSchema = z.object({

@@ -185,6 +185,29 @@ const annualFiltersSchema = z.object({
 
 type AnnualFiltersData = z.infer<typeof annualFiltersSchema>;
 
+// Interface para ações de revisão
+interface ReviewAction {
+  type: 'receita' | 'salario' | 'fornecedor' | 'revisado';
+  item: ReviewQueueItem;
+  index: number;
+}
+
+interface ReviewState {
+  isProcessing: boolean;
+  processingIndex: number | null;
+  showConfirmDialog: boolean;
+  pendingAction: ReviewAction | null;
+  selectedCategory: string;
+}
+
+// Schema para confirmação de reclassificação
+const reviewActionSchema = z.object({
+  categoria: z.string().min(1, "Categoria é obrigatória"),
+  observations: z.string().optional(),
+});
+
+type ReviewActionFormData = z.infer<typeof reviewActionSchema>;
+
 // Import backend schema
 import type { AnnualSpendResponse } from '@shared/schema';
 
@@ -224,6 +247,15 @@ export default function GastosBasilePage() {
     fornecedores: ''
   });
 
+  // Estados para ações de revisão
+  const [reviewState, setReviewState] = useState<ReviewState>({
+    isProcessing: false,
+    processingIndex: null,
+    showConfirmDialog: false,
+    pendingAction: null,
+    selectedCategory: ''
+  });
+
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -250,6 +282,14 @@ export default function GastosBasilePage() {
   const annualFiltersForm = useForm<AnnualFiltersData>({
     resolver: zodResolver(annualFiltersSchema),
     defaultValues: annualFilters
+  });
+
+  const reviewActionForm = useForm<ReviewActionFormData>({
+    resolver: zodResolver(reviewActionSchema),
+    defaultValues: {
+      categoria: '',
+      observations: '',
+    }
   });
 
   // Meses para o seletor
@@ -472,6 +512,106 @@ export default function GastosBasilePage() {
       });
     }
   });
+
+  /**
+   * Handlers para ações de revisão
+   */
+  const handleReviewAction = useCallback((
+    action: 'receita' | 'salario' | 'fornecedor' | 'revisado',
+    item: ReviewQueueItem,
+    index: number
+  ) => {
+    const reviewAction: ReviewAction = { type: action, item, index };
+    
+    // Para ações que precisam de categoria específica, abrir diálogo
+    if (action === 'receita' || action === 'fornecedor') {
+      setReviewState(prev => ({
+        ...prev,
+        showConfirmDialog: true,
+        pendingAction: reviewAction,
+        selectedCategory: action === 'receita' ? 'Receitas' : 'Fornecedores'
+      }));
+      reviewActionForm.setValue('categoria', action === 'receita' ? 'Receitas' : 'Fornecedores');
+    } else {
+      // Para salário e revisado, executar diretamente
+      executeReviewAction(reviewAction, action === 'salario' ? 'Salários' : item.motivo);
+    }
+  }, [reviewActionForm]);
+
+  const executeReviewAction = useCallback((action: ReviewAction, categoria: string, observations?: string) => {
+    if (!processedData) return;
+
+    setReviewState(prev => ({
+      ...prev,
+      isProcessing: true,
+      processingIndex: action.index
+    }));
+
+    // Simular processamento (em uma implementação real, isso seria uma API call)
+    setTimeout(() => {
+      // Atualizar processedData removendo o item da fila de revisão
+      setProcessedData(prev => {
+        if (!prev) return prev;
+        
+        const newFilaRevisao = prev.enhancedSummary.filaRevisao.filter((_, i) => i !== action.index);
+        
+        return {
+          ...prev,
+          enhancedSummary: {
+            ...prev.enhancedSummary,
+            filaRevisao: newFilaRevisao
+          },
+          enhancedStats: {
+            ...prev.enhancedStats,
+            reviewQueue: newFilaRevisao.length
+          }
+        };
+      });
+
+      // Feedback de sucesso
+      const actionLabels = {
+        receita: 'Receita',
+        salario: 'Salário',
+        fornecedor: 'Fornecedor',
+        revisado: 'Revisado'
+      };
+
+      toast({
+        title: `Item classificado como ${actionLabels[action.type]}`,
+        description: `Transação de ${formatCurrencyBR(action.item.valor)} foi reclassificada`,
+      });
+
+      // Reset do estado
+      setReviewState({
+        isProcessing: false,
+        processingIndex: null,
+        showConfirmDialog: false,
+        pendingAction: null,
+        selectedCategory: ''
+      });
+
+    }, 1000); // Simula delay de processamento
+  }, [processedData, toast]);
+
+  const handleConfirmReviewAction = useCallback((data: ReviewActionFormData) => {
+    if (!reviewState.pendingAction) return;
+    
+    executeReviewAction(
+      reviewState.pendingAction,
+      data.categoria,
+      data.observations
+    );
+  }, [reviewState.pendingAction, executeReviewAction]);
+
+  const handleCancelReviewAction = useCallback(() => {
+    setReviewState(prev => ({
+      ...prev,
+      showConfirmDialog: false,
+      pendingAction: null,
+      selectedCategory: ''
+    }));
+    reviewActionForm.reset();
+  }, [reviewActionForm]);
 
   /**
    * Processa arquivo bancário (mantém funcionalidade original)
@@ -1537,12 +1677,13 @@ export default function GastosBasilePage() {
                                   <TableHead>Histórico</TableHead>
                                   <TableHead className="text-right">Valor</TableHead>
                                   <TableHead>Motivo da Revisão</TableHead>
+                                  <TableHead className="text-center">Ações</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
                                 {processedData.enhancedSummary.filaRevisao.length === 0 ? (
                                   <TableRow>
-                                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                                    <TableCell colSpan={5} className="text-center text-muted-foreground">
                                       Nenhum item na fila de revisão
                                     </TableCell>
                                   </TableRow>
@@ -1563,6 +1704,63 @@ export default function GastosBasilePage() {
                                           {item.motivo}
                                         </Badge>
                                       </TableCell>
+                                      <TableCell data-testid={`review-queue-actions-${index}`}>
+                                        <div className="flex flex-wrap gap-1 justify-center">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-7 text-xs px-2 text-green-600 border-green-600 hover:bg-green-50"
+                                            onClick={() => handleReviewAction('receita', item, index)}
+                                            disabled={reviewState.isProcessing && reviewState.processingIndex === index}
+                                            data-testid={`button-classify-revenue-${index}`}
+                                          >
+                                            {reviewState.isProcessing && reviewState.processingIndex === index ? (
+                                              <>
+                                                <span className="animate-spin mr-1">⏳</span>
+                                                Processando...
+                                              </>
+                                            ) : (
+                                              <>
+                                                <TrendingUp className="h-3 w-3 mr-1" />
+                                                Receita
+                                              </>
+                                            )}
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-7 text-xs px-2 text-blue-600 border-blue-600 hover:bg-blue-50"
+                                            onClick={() => handleReviewAction('salario', item, index)}
+                                            disabled={reviewState.isProcessing && reviewState.processingIndex === index}
+                                            data-testid={`button-classify-salary-${index}`}
+                                          >
+                                            <DollarSign className="h-3 w-3 mr-1" />
+                                            Salário
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-7 text-xs px-2 text-orange-600 border-orange-600 hover:bg-orange-50"
+                                            onClick={() => handleReviewAction('fornecedor', item, index)}
+                                            disabled={reviewState.isProcessing && reviewState.processingIndex === index}
+                                            data-testid={`button-classify-supplier-${index}`}
+                                          >
+                                            <Edit className="h-3 w-3 mr-1" />
+                                            Fornecedor
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-7 text-xs px-2 text-gray-600 border-gray-600 hover:bg-gray-50"
+                                            onClick={() => handleReviewAction('revisado', item, index)}
+                                            disabled={reviewState.isProcessing && reviewState.processingIndex === index}
+                                            data-testid={`button-mark-reviewed-${index}`}
+                                          >
+                                            <CheckCircle className="h-3 w-3 mr-1" />
+                                            Revisado
+                                          </Button>
+                                        </div>
+                                      </TableCell>
                                     </TableRow>
                                   ))
                                 )}
@@ -1573,6 +1771,108 @@ export default function GastosBasilePage() {
                       </Tabs>
                     </CardContent>
                   </Card>
+                )}
+
+                {/* Diálogo de confirmação para ações de revisão */}
+                {reviewState.showConfirmDialog && reviewState.pendingAction && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-md mx-4 shadow-lg">
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <AlertCircle className="h-5 w-5 text-orange-500" />
+                          <h3 className="text-lg font-semibold">Confirmar Reclassificação</h3>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">
+                            <strong>Data:</strong> {reviewState.pendingAction.item.data}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            <strong>Histórico:</strong> {reviewState.pendingAction.item.historico}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            <strong>Valor:</strong> {formatCurrencyBR(reviewState.pendingAction.item.valor)}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            <strong>Classificar como:</strong> {reviewState.pendingAction.type === 'receita' ? 'Receita' : 'Fornecedor'}
+                          </p>
+                        </div>
+
+                        <Form {...reviewActionForm}>
+                          <form onSubmit={reviewActionForm.handleSubmit(handleConfirmReviewAction)} className="space-y-4">
+                            <FormField
+                              control={reviewActionForm.control}
+                              name="categoria"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Categoria</FormLabel>
+                                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger data-testid="select-review-category">
+                                        <SelectValue placeholder="Selecione uma categoria" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {categories.map((category) => (
+                                        <SelectItem key={category} value={category}>
+                                          {category}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={reviewActionForm.control}
+                              name="observations"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Observações (opcional)</FormLabel>
+                                  <FormControl>
+                                    <Textarea
+                                      placeholder="Adicione observações sobre esta reclassificação..."
+                                      className="resize-none"
+                                      {...field}
+                                      data-testid="textarea-review-observations"
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={handleCancelReviewAction}
+                                data-testid="button-cancel-review"
+                              >
+                                Cancelar
+                              </Button>
+                              <Button
+                                type="submit"
+                                disabled={reviewState.isProcessing}
+                                data-testid="button-confirm-review"
+                              >
+                                {reviewState.isProcessing ? (
+                                  <>
+                                    <span className="animate-spin mr-2">⏳</span>
+                                    Processando...
+                                  </>
+                                ) : (
+                                  'Confirmar'
+                                )}
+                              </Button>
+                            </div>
+                          </form>
+                        </Form>
+                      </div>
+                    </div>
+                  </div>
                 )}
 
                 {/* Gráficos */}

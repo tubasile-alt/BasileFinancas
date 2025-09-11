@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, type DailyClosure, type InsertDailyClosure, type BankTransactionPersistent, type InsertBankTransactionPersistent, type ManualExpense, type InsertManualExpense, type AnnualSpendResponse, type AnnualSpendQuery, users, financialEntries, dailyClosure, bankTransactions, manualExpenses } from "@shared/schema";
+import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, type DailyClosure, type InsertDailyClosure, type BankTransactionPersistent, type InsertBankTransactionPersistent, type ManualExpense, type InsertManualExpense, type LearnedClassification, type InsertLearnedClassification, type AnnualSpendResponse, type AnnualSpendQuery, users, financialEntries, dailyClosure, bankTransactions, manualExpenses, learnedClassifications } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, like, ilike } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -74,6 +74,12 @@ export interface IStorage {
   
   // Annual Dashboard
   getAnnualSpend(params: AnnualSpendQuery): Promise<AnnualSpendResponse>;
+  
+  // Learned Classifications CRUD
+  saveLearnedClassification(classification: InsertLearnedClassification): Promise<LearnedClassification>;
+  getLearnedClassifications(): Promise<LearnedClassification[]>;
+  findLearnedByHistorico(historico: string): Promise<LearnedClassification | undefined>;
+  updateLearnedClassificationUsage(id: string): Promise<LearnedClassification | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -81,12 +87,14 @@ export class MemStorage implements IStorage {
   private financialEntries: Map<string, FinancialEntry>;
   private bankTransactions: Map<string, BankTransactionPersistent>;
   private manualExpenses: Map<string, ManualExpense>;
+  private learnedClassifications: Map<string, LearnedClassification>;
 
   constructor() {
     this.users = new Map();
     this.financialEntries = new Map();
     this.bankTransactions = new Map();
     this.manualExpenses = new Map();
+    this.learnedClassifications = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -672,6 +680,91 @@ export class MemStorage implements IStorage {
       totals,
       byCategory,
     };
+  }
+
+  // Learned Classifications Methods
+  async saveLearnedClassification(insertClassification: InsertLearnedClassification): Promise<LearnedClassification> {
+    const id = randomUUID();
+    const classification: LearnedClassification = {
+      ...insertClassification,
+      id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.learnedClassifications.set(id, classification);
+    return classification;
+  }
+
+  async getLearnedClassifications(): Promise<LearnedClassification[]> {
+    return Array.from(this.learnedClassifications.values())
+      .sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+  }
+
+  async findLearnedByHistorico(historico: string): Promise<LearnedClassification | undefined> {
+    // First try exact match
+    const exactMatch = Array.from(this.learnedClassifications.values())
+      .find(c => c.historico.toLowerCase() === historico.toLowerCase());
+    
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    // Then try fuzzy matching for similarities > 85%
+    const normalizedHistorico = historico.toLowerCase().trim();
+    for (const classification of this.learnedClassifications.values()) {
+      const normalizedClassificationHistorico = classification.historico.toLowerCase().trim();
+      const similarity = this.calculateStringSimilarity(normalizedHistorico, normalizedClassificationHistorico);
+      if (similarity > 0.85) {
+        return classification;
+      }
+    }
+
+    return undefined;
+  }
+
+  async updateLearnedClassificationUsage(id: string): Promise<LearnedClassification | undefined> {
+    const existing = this.learnedClassifications.get(id);
+    if (!existing) return undefined;
+    
+    const updated: LearnedClassification = {
+      ...existing,
+      vezesAplicado: existing.vezesAplicado + 1,
+      updatedAt: new Date(),
+    };
+    this.learnedClassifications.set(id, updated);
+    return updated;
+  }
+
+  // Helper method for fuzzy matching
+  private calculateStringSimilarity(str1: string, str2: string): number {
+    if (str1 === str2) return 1.0;
+    
+    const len1 = str1.length;
+    const len2 = str2.length;
+    
+    if (len1 === 0) return len2 === 0 ? 1.0 : 0.0;
+    if (len2 === 0) return 0.0;
+    
+    // Use Levenshtein distance for similarity calculation
+    const matrix = Array(len2 + 1).fill(null).map(() => Array(len1 + 1).fill(null));
+    
+    for (let i = 0; i <= len1; i++) matrix[0][i] = i;
+    for (let j = 0; j <= len2; j++) matrix[j][0] = j;
+    
+    for (let j = 1; j <= len2; j++) {
+      for (let i = 1; i <= len1; i++) {
+        const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+        matrix[j][i] = Math.min(
+          matrix[j - 1][i] + 1,
+          matrix[j][i - 1] + 1,
+          matrix[j - 1][i - 1] + cost
+        );
+      }
+    }
+    
+    const distance = matrix[len2][len1];
+    const maxLen = Math.max(len1, len2);
+    return 1.0 - (distance / maxLen);
   }
 }
 
@@ -1282,6 +1375,95 @@ export class DatabaseStorage implements IStorage {
       totals,
       byCategory,
     };
+  }
+
+  // Learned Classifications Methods
+  async saveLearnedClassification(insertClassification: InsertLearnedClassification): Promise<LearnedClassification> {
+    const [classification] = await db
+      .insert(learnedClassifications)
+      .values(insertClassification)
+      .returning();
+    return classification;
+  }
+
+  async getLearnedClassifications(): Promise<LearnedClassification[]> {
+    const classifications = await db
+      .select()
+      .from(learnedClassifications)
+      .orderBy(learnedClassifications.createdAt);
+    return classifications;
+  }
+
+  async findLearnedByHistorico(historico: string): Promise<LearnedClassification | undefined> {
+    // First try exact match (case insensitive)
+    const [exactMatch] = await db
+      .select()
+      .from(learnedClassifications)
+      .where(ilike(learnedClassifications.historico, historico));
+    
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    // For fuzzy matching, we'll need to get all classifications and do client-side matching
+    // since SQL fuzzy matching is complex. For better performance, could implement using 
+    // PostgreSQL extensions like pg_trgm in the future
+    const allClassifications = await this.getLearnedClassifications();
+    const normalizedHistorico = historico.toLowerCase().trim();
+    
+    for (const classification of allClassifications) {
+      const normalizedClassificationHistorico = classification.historico.toLowerCase().trim();
+      const similarity = this.calculateStringSimilarity(normalizedHistorico, normalizedClassificationHistorico);
+      if (similarity > 0.85) {
+        return classification;
+      }
+    }
+
+    return undefined;
+  }
+
+  async updateLearnedClassificationUsage(id: string): Promise<LearnedClassification | undefined> {
+    const [updated] = await db
+      .update(learnedClassifications)
+      .set({ 
+        vezesAplicado: sql`${learnedClassifications.vezesAplicado} + 1`,
+        updatedAt: sql`CURRENT_TIMESTAMP`
+      })
+      .where(eq(learnedClassifications.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  // Helper method for fuzzy matching (same as MemStorage)
+  private calculateStringSimilarity(str1: string, str2: string): number {
+    if (str1 === str2) return 1.0;
+    
+    const len1 = str1.length;
+    const len2 = str2.length;
+    
+    if (len1 === 0) return len2 === 0 ? 1.0 : 0.0;
+    if (len2 === 0) return 0.0;
+    
+    // Use Levenshtein distance for similarity calculation
+    const matrix = Array(len2 + 1).fill(null).map(() => Array(len1 + 1).fill(null));
+    
+    for (let i = 0; i <= len1; i++) matrix[0][i] = i;
+    for (let j = 0; j <= len2; j++) matrix[j][0] = j;
+    
+    for (let j = 1; j <= len2; j++) {
+      for (let i = 1; i <= len1; i++) {
+        const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+        matrix[j][i] = Math.min(
+          matrix[j - 1][i] + 1,
+          matrix[j][i - 1] + 1,
+          matrix[j - 1][i - 1] + cost
+        );
+      }
+    }
+    
+    const distance = matrix[len2][len1];
+    const maxLen = Math.max(len1, len2);
+    return 1.0 - (distance / maxLen);
   }
 }
 

@@ -64,6 +64,11 @@ const CLASSIFICATION_RULES = [
       "CRÉDITO", 
       "DEPOSITO",
       "DEPÓSITO",
+      // Pagamentos de cartão (recebimento)
+      "GETNET-VISA",
+      "GETNET-MAESTRO",
+      "PAGAMENTO CARTAO DE DEBITO GETNET-VISA",
+      "PAGAMENTO CARTAO DE DEBITO GETNET-MAESTRO",
       // Nomes de convênios/operadoras (podem ser expandidos)
       "UNIMED",
       "AMIL",
