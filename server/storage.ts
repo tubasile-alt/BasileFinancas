@@ -1,6 +1,6 @@
 import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, type DailyClosure, type InsertDailyClosure, type BankTransactionPersistent, type InsertBankTransactionPersistent, type ManualExpense, type InsertManualExpense, type LearnedClassification, type InsertLearnedClassification, type AnnualSpendResponse, type AnnualSpendQuery, users, financialEntries, dailyClosure, bankTransactions, manualExpenses, learnedClassifications } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte, like, ilike } from "drizzle-orm";
+import { eq, and, gte, lte, like, ilike, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { calculateProcedureCosts, MONTHLY_FIXED_COSTS } from "./procedure-costs";
 
@@ -687,6 +687,7 @@ export class MemStorage implements IStorage {
     const id = randomUUID();
     const classification: LearnedClassification = {
       ...insertClassification,
+      vezesAplicado: insertClassification.vezesAplicado ?? 1,
       id,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -711,7 +712,7 @@ export class MemStorage implements IStorage {
 
     // Then try fuzzy matching for similarities > 85%
     const normalizedHistorico = historico.toLowerCase().trim();
-    for (const classification of this.learnedClassifications.values()) {
+    for (const classification of Array.from(this.learnedClassifications.values())) {
       const normalizedClassificationHistorico = classification.historico.toLowerCase().trim();
       const similarity = this.calculateStringSimilarity(normalizedHistorico, normalizedClassificationHistorico);
       if (similarity > 0.85) {

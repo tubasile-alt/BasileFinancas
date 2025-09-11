@@ -36,9 +36,41 @@ export interface ClassificationDictionaries {
 }
 
 /**
+ * Palavras-chave para transações que devem ser completamente ignoradas
+ */
+const IGNORE_KEYWORDS = [
+  "APLICACAO CONTAMAX",
+  "APLICAÇÃO CONTAMAX",
+  "RESGATE CONTAMAX",
+  "AUTOMATICO",
+  "AUTOMÁTICO"
+];
+
+/**
+ * Detecta se uma transação deve ser completamente ignorada (CONTAMAX, etc.)
+ */
+export function shouldIgnoreTransaction(historico: string): boolean {
+  const historicoUpper = historico.toUpperCase();
+  
+  for (const keyword of IGNORE_KEYWORDS) {
+    if (historicoUpper.includes(keyword)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
  * Regras de classificação em ordem de precedência
  */
 const CLASSIFICATION_RULES = [
+  // 0. Transações a serem ignoradas (primeira prioridade)
+  {
+    keywords: IGNORE_KEYWORDS,
+    categoria: "IGNORAR – Movimentações CONTAMAX/Automáticas",
+    ehOperacional: false
+  },
   // 1. Movimentações Financeiras (não operacionais)
   {
     keywords: [
@@ -476,11 +508,20 @@ export function checkSupplierList(historico: string, fornecedores?: string[]): b
  * @returns Objeto com categoria e se é operacional
  */
 export function classifyTransaction(historico: string): ClassificationResult {
+  // Primeira verificação: transações a serem ignoradas
+  if (shouldIgnoreTransaction(historico)) {
+    return {
+      categoria: "IGNORAR – Movimentações CONTAMAX/Automáticas",
+      ehOperacional: false
+    };
+  }
+
   // Converte para uppercase para comparação case-insensitive
   const historicoUpper = historico.toUpperCase();
 
-  // Verifica cada regra em ordem de precedência
-  for (const rule of CLASSIFICATION_RULES) {
+  // Verifica cada regra em ordem de precedência (pula a regra 0 - IGNORAR)
+  for (let i = 1; i < CLASSIFICATION_RULES.length; i++) {
+    const rule = CLASSIFICATION_RULES[i];
     for (const keyword of rule.keywords) {
       if (historicoUpper.includes(keyword)) {
         return {
@@ -516,6 +557,22 @@ export function classifyTransactionAdvanced(
   funcionarios?: string[],
   fornecedores?: string[]
 ): AdvancedClassificationResult {
+  // Primeira verificação: transações a serem ignoradas
+  if (shouldIgnoreTransaction(historico)) {
+    return {
+      categoria: "IGNORAR – Movimentações CONTAMAX/Automáticas",
+      ehOperacional: false,
+      ehMovtoFinanceiro: false,
+      ehImposto: false,
+      ehSalarioPalavra: false,
+      ehSalarioHeuristico: false,
+      salarioConfirmado: false,
+      classificacaoFinal: "IGNORAR – Movimentações CONTAMAX/Automáticas",
+      needsReview: false,
+      confidenceScore: 1.0
+    };
+  }
+
   // Executa todas as detecções
   const ehMovtoFinanceiro = detectFinancialMovement(historico);
   const ehImposto = detectTax(historico);

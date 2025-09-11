@@ -1706,37 +1706,86 @@ export default function GastosBasilePage() {
                                       </TableCell>
                                       <TableCell data-testid={`review-queue-actions-${index}`}>
                                         <div className="flex flex-wrap gap-1 justify-center">
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="h-7 text-xs px-2 text-green-600 border-green-600 hover:bg-green-50"
-                                            onClick={() => handleReviewAction('receita', item, index)}
-                                            disabled={reviewState.isProcessing && reviewState.processingIndex === index}
-                                            data-testid={`button-classify-revenue-${index}`}
-                                          >
-                                            {reviewState.isProcessing && reviewState.processingIndex === index ? (
-                                              <>
-                                                <span className="animate-spin mr-1">⏳</span>
-                                                Processando...
-                                              </>
-                                            ) : (
-                                              <>
-                                                <TrendingUp className="h-3 w-3 mr-1" />
-                                                Receita
-                                              </>
-                                            )}
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="h-7 text-xs px-2 text-blue-600 border-blue-600 hover:bg-blue-50"
-                                            onClick={() => handleReviewAction('salario', item, index)}
-                                            disabled={reviewState.isProcessing && reviewState.processingIndex === index}
-                                            data-testid={`button-classify-salary-${index}`}
-                                          >
-                                            <DollarSign className="h-3 w-3 mr-1" />
-                                            Salário
-                                          </Button>
+                                          {item.motivo.includes("Possível salário") ? (
+                                            // Botões específicos SIM/NÃO para casos de salário heurístico
+                                            <>
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-7 text-xs px-2 text-green-600 border-green-600 hover:bg-green-50"
+                                                onClick={() => handleReviewAction('salario', item, index)}
+                                                disabled={reviewState.isProcessing && reviewState.processingIndex === index}
+                                                data-testid={`button-salary-yes-${index}`}
+                                              >
+                                                {reviewState.isProcessing && reviewState.processingIndex === index ? (
+                                                  <>
+                                                    <span className="animate-spin mr-1">⏳</span>
+                                                    Processando...
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                                    SIM - É Salário
+                                                  </>
+                                                )}
+                                              </Button>
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-7 text-xs px-2 text-red-600 border-red-600 hover:bg-red-50"
+                                                onClick={() => handleReviewAction('fornecedor', item, index)}
+                                                disabled={reviewState.isProcessing && reviewState.processingIndex === index}
+                                                data-testid={`button-salary-no-${index}`}
+                                              >
+                                                {reviewState.isProcessing && reviewState.processingIndex === index ? (
+                                                  <>
+                                                    <span className="animate-spin mr-1">⏳</span>
+                                                    Processando...
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <Edit className="h-3 w-3 mr-1" />
+                                                    NÃO - É Conta/Serviço
+                                                  </>
+                                                )}
+                                              </Button>
+                                            </>
+                                          ) : (
+                                            // Botões padrão para outros casos
+                                            <>
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-7 text-xs px-2 text-green-600 border-green-600 hover:bg-green-50"
+                                                onClick={() => handleReviewAction('receita', item, index)}
+                                                disabled={reviewState.isProcessing && reviewState.processingIndex === index}
+                                                data-testid={`button-classify-revenue-${index}`}
+                                              >
+                                                {reviewState.isProcessing && reviewState.processingIndex === index ? (
+                                                  <>
+                                                    <span className="animate-spin mr-1">⏳</span>
+                                                    Processando...
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <TrendingUp className="h-3 w-3 mr-1" />
+                                                    Receita
+                                                  </>
+                                                )}
+                                              </Button>
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-7 text-xs px-2 text-blue-600 border-blue-600 hover:bg-blue-50"
+                                                onClick={() => handleReviewAction('salario', item, index)}
+                                                disabled={reviewState.isProcessing && reviewState.processingIndex === index}
+                                                data-testid={`button-classify-salary-${index}`}
+                                              >
+                                                <DollarSign className="h-3 w-3 mr-1" />
+                                                Salário
+                                              </Button>
+                                            </>
+                                          )}
                                           <Button
                                             size="sm"
                                             variant="outline"

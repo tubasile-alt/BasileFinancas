@@ -35,8 +35,10 @@ import {
  * - Contadores de entradas e saídas
  */
 export function generateOperationalSummary(transactions: ClassifiedTransaction[]): OperationalSummary {
-  // Filtra apenas transações operacionais
-  const operationalTransactions = transactions.filter(t => t.ehOperacional);
+  // Filtra apenas transações operacionais e remove transações a serem ignoradas
+  const operationalTransactions = transactions.filter(t => 
+    t.ehOperacional && !t.categoria.includes('IGNORAR')
+  );
   
   let entradasReais = 0;
   let saidasReais = 0;
@@ -75,8 +77,10 @@ export function generateOperationalSummary(transactions: ClassifiedTransaction[]
  * Ordenação: despesas (negativas) da maior para menor, receitas (positivas) da maior para menor.
  */
 export function generateCategoryReport(transactions: ClassifiedTransaction[]): CategoryTotal[] {
-  // Filtra apenas transações operacionais
-  const operationalTransactions = transactions.filter(t => t.ehOperacional);
+  // Filtra apenas transações operacionais e remove transações a serem ignoradas
+  const operationalTransactions = transactions.filter(t => 
+    t.ehOperacional && !t.categoria.includes('IGNORAR')
+  );
   
   // Agrupa por categoria
   const categoryTotals = new Map<string, number>();
@@ -129,8 +133,10 @@ export function generateCategoryReport(transactions: ClassifiedTransaction[]): C
  * Usa date-fns para cálculo preciso de semanas ISO.
  */
 export function generateWeeklyCashFlow(transactions: ClassifiedTransaction[]): WeeklyCashFlow[] {
-  // Filtra apenas transações operacionais
-  const operationalTransactions = transactions.filter(t => t.ehOperacional);
+  // Filtra apenas transações operacionais e remove transações a serem ignoradas
+  const operationalTransactions = transactions.filter(t => 
+    t.ehOperacional && !t.categoria.includes('IGNORAR')
+  );
   
   // Agrupa por semana ISO
   const weeklyTotals = new Map<number, number>();
@@ -167,8 +173,10 @@ export function generateWeeklyCashFlow(transactions: ClassifiedTransaction[]): W
  * Ordenação: da maior despesa para menor (mais negativo primeiro).
  */
 export function generateTop10Expenses(transactions: ClassifiedTransaction[]): TopTransaction[] {
-  // Filtra apenas transações operacionais com valor negativo (despesas)
-  const expenseTransactions = transactions.filter(t => t.ehOperacional && t.valor < 0);
+  // Filtra apenas transações operacionais com valor negativo (despesas) e remove transações a serem ignoradas
+  const expenseTransactions = transactions.filter(t => 
+    t.ehOperacional && t.valor < 0 && !t.categoria.includes('IGNORAR')
+  );
   
   // Converte para TopTransaction
   const expenses: TopTransaction[] = expenseTransactions.map(t => ({
@@ -192,8 +200,10 @@ export function generateTop10Expenses(transactions: ClassifiedTransaction[]): To
  * Ordenação: da maior receita para menor.
  */
 export function generateTop10Revenues(transactions: ClassifiedTransaction[]): TopTransaction[] {
-  // Filtra apenas transações operacionais com valor positivo (receitas)
-  const revenueTransactions = transactions.filter(t => t.ehOperacional && t.valor > 0);
+  // Filtra apenas transações operacionais com valor positivo (receitas) e remove transações a serem ignoradas
+  const revenueTransactions = transactions.filter(t => 
+    t.ehOperacional && t.valor > 0 && !t.categoria.includes('IGNORAR')
+  );
   
   // Converte para TopTransaction
   const revenues: TopTransaction[] = revenueTransactions.map(t => ({
