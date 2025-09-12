@@ -588,6 +588,8 @@ export default function GastosBasilePage() {
     item: ReviewQueueItem,
     index: number
   ) => {
+    console.log('🎯 HandleReviewAction chamado:', { action, historico: item.historico, index });
+    
     const reviewAction: ReviewAction = { type: action, item, index };
     
     // Para ações que precisam de categoria específica, abrir diálogo
@@ -606,7 +608,12 @@ export default function GastosBasilePage() {
   }, [reviewActionForm]);
 
   const executeReviewAction = useCallback(async (action: ReviewAction, categoria: string, observations?: string) => {
-    if (!processedData) return;
+    console.log('🔧 ExecuteReviewAction chamado:', { action: action.type, categoria, item: action.item.historico });
+    
+    if (!processedData) {
+      console.log('❌ Não há processedData');
+      return;
+    }
 
     setReviewState(prev => ({
       ...prev,
@@ -655,6 +662,7 @@ export default function GastosBasilePage() {
         vezesAplicado: 1
       };
 
+      console.log('💾 Salvando aprendizado:', learnedClassification);
       await apiRequest('POST', '/api/learned-classifications', learnedClassification);
 
       // Atualizar processedData removendo o item da fila de revisão
