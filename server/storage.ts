@@ -1348,7 +1348,8 @@ export class DatabaseStorage implements IStorage {
       .from(bankTransactions)
       .where(and(...bankConditions));
     
-    // Convert to ClassifiedTransaction format for advanced processing
+    // Use the ALREADY CLASSIFIED data from database (processed correctly in upload)
+    // This avoids the issue of missing dictionaries and learned classifications
     const transactions = bankData.map(t => ({
       dateISO: t.dateISO,
       historico: t.historico,
@@ -1362,30 +1363,16 @@ export class DatabaseStorage implements IStorage {
       isoWeek: t.isoWeek
     }));
     
-    // Apply advanced classification (same as upload processing)
-    const { classifyTransactionAdvanced } = await import('../client/src/lib/classification-rules');
+    // Simple check for financial movements using saved category (same as upload result)
+    const isFinancialMovement = (categoria: string) => {
+      return categoria.includes('CONTAMAX') || 
+             categoria.includes('IGNORAR') ||
+             categoria.includes('Movimentação Financeira – não operacional');
+    };
     
-    const annotated = transactions.map(transaction => {
-      const advanced = classifyTransactionAdvanced(
-        transaction.historico,
-        transaction.valor,
-        transaction.dateISO,
-        [], // funcionarios - not needed for annual view
-        []  // fornecedores - not needed for annual view
-      );
-      
-      return {
-        ...transaction,
-        categoria: advanced.categoria,
-        ehOperacional: advanced.ehOperacional,
-        ehMovtoFinanceiro: advanced.ehMovtoFinanceiro,
-        ehImposto: advanced.ehImposto
-      };
-    });
-    
-    // Filter operational transactions (EXCLUDE financial movements) - SAME AS UPLOAD
-    const operationalTransactions = annotated.filter(t => 
-      t.ehOperacional && !t.ehMovtoFinanceiro
+    // Filter operational transactions EXACTLY like upload does
+    const operationalTransactions = transactions.filter(t => 
+      t.ehOperacional && !isFinancialMovement(t.categoria)
     );
     
     // Process operational transactions using VALUE SIGN (same as upload logic)
