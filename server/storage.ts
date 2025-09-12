@@ -1356,16 +1356,25 @@ export class DatabaseStorage implements IStorage {
     // Process bank transactions
     bankData.forEach(transaction => {
       const valor = parseFloat(transaction.valor);
-      const isEntrada = valor >= 0;
-      const tipoTransaction = isEntrada ? 'entrada' : 'saida';
-      
-      if (tipo && tipo !== tipoTransaction) return;
-      
       const absValue = Math.abs(valor);
       const month = transaction.mes;
       
+      // Determine if it's entrada or saida based on category, not value sign
+      const isReceita = transaction.categoria?.includes('Receita') || 
+                       transaction.categoria?.includes('PAGAMENTO CARTAO') ||
+                       transaction.categoria?.includes('PIX RECEBIDO');
+      
+      // Skip CONTAMAX transactions (should be ignored)
+      if (transaction.categoria?.includes('CONTAMAX') || transaction.categoria?.includes('IGNORAR')) {
+        return;
+      }
+      
+      const tipoTransaction = isReceita ? 'entrada' : 'saida';
+      
+      if (tipo && tipo !== tipoTransaction) return;
+      
       // Add to monthly data
-      if (isEntrada) {
+      if (isReceita) {
         monthsData[month].entradas += absValue;
       } else {
         monthsData[month].saidas += absValue;
@@ -1375,7 +1384,7 @@ export class DatabaseStorage implements IStorage {
       if (!categoriesData[transaction.categoria]) {
         categoriesData[transaction.categoria] = { entradas: 0, saidas: 0 };
       }
-      if (isEntrada) {
+      if (isReceita) {
         categoriesData[transaction.categoria].entradas += absValue;
       } else {
         categoriesData[transaction.categoria].saidas += absValue;
