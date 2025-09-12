@@ -610,8 +610,21 @@ export default function GastosBasilePage() {
   const executeReviewAction = useCallback(async (action: ReviewAction, categoria: string, observations?: string) => {
     console.log('🔧 ExecuteReviewAction chamado:', { action: action.type, categoria, item: action.item.historico });
     
-    if (!processedData) {
+    // Capturar processedData no momento da execução
+    const currentProcessedData = processedData;
+    console.log('🔍 ProcessedData status:', { 
+      hasData: !!currentProcessedData, 
+      dataType: typeof currentProcessedData,
+      filaLength: currentProcessedData?.enhancedSummary?.filaRevisao?.length
+    });
+    
+    if (!currentProcessedData) {
       console.log('❌ Não há processedData');
+      toast({
+        title: "Erro",
+        description: "Dados não carregados. Tente processar o arquivo novamente.",
+        variant: "destructive"
+      });
       return;
     }
 
