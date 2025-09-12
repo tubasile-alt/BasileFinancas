@@ -683,21 +683,55 @@ export default function GastosBasilePage() {
       console.log('💾 Salvando aprendizado:', learnedClassification);
       await apiRequest('POST', '/api/learned-classifications', learnedClassification);
 
-      // Atualizar processedData removendo o item da fila de revisão
+      // Atualizar processedData aplicando a nova classificação
       setProcessedData(prev => {
         if (!prev) return prev;
         
+        const item = action.item;
         const newFilaRevisao = prev.enhancedSummary.filaRevisao.filter((_, i) => i !== action.index);
+        
+        // Criar cópia das estruturas existentes
+        let newSalariosConfirmados = { ...prev.enhancedSummary.salariosConfirmados };
+        let newEnhancedSummary = { ...prev.enhancedSummary };
+        
+        // Se foi classificado como salário, adicionar à lista de salários confirmados
+        if (action.type === 'salario') {
+          const novoSalario = {
+            data: item.data,
+            historico: item.historico,
+            valor: item.valor
+          };
+          
+          newSalariosConfirmados = {
+            lista: [...newSalariosConfirmados.lista, novoSalario],
+            total: newSalariosConfirmados.total + Math.abs(item.valor)
+          };
+          
+          // Atualizar mensagem UX
+          newEnhancedSummary = {
+            ...newEnhancedSummary,
+            salariosConfirmados: newSalariosConfirmados,
+            filaRevisao: newFilaRevisao
+          };
+        } else {
+          // Para outras classificações, apenas remover da fila
+          newEnhancedSummary = {
+            ...newEnhancedSummary,
+            filaRevisao: newFilaRevisao
+          };
+        }
         
         return {
           ...prev,
-          enhancedSummary: {
-            ...prev.enhancedSummary,
-            filaRevisao: newFilaRevisao
-          },
+          enhancedSummary: newEnhancedSummary,
           enhancedStats: {
             ...prev.enhancedStats,
             reviewQueue: newFilaRevisao.length
+          },
+          // Atualizar mensagem UX para salários confirmados
+          uxMessages: {
+            ...prev.uxMessages,
+            salariosConfirmados: `Salários (confirmados): ${formatCurrencyBR(Math.abs(newEnhancedSummary.salariosConfirmados.total))}`
           }
         };
       });
@@ -1873,7 +1907,7 @@ export default function GastosBasilePage() {
                                   </TableRow>
                                 ) : (
                                   processedData.enhancedSummary.filaRevisao.map((item, index) => (
-                                    <TableRow key={index} className={item.revisado ? "bg-green-50 dark:bg-green-900/20" : ""}>
+                                    <TableRow key={index}>
                                       <TableCell className="font-medium" data-testid={`review-queue-date-${index}`}>
                                         {item.data}
                                       </TableCell>
