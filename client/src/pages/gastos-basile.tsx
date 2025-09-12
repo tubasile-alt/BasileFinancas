@@ -593,17 +593,22 @@ export default function GastosBasilePage() {
     const reviewAction: ReviewAction = { type: action, item, index };
     
     // Para ações que precisam de categoria específica, abrir diálogo
-    if (action === 'receita' || action === 'fornecedor') {
+    if (action === 'receita' || action === 'fornecedor' || action === 'salario') {
+      let categoria = '';
+      if (action === 'receita') categoria = 'Receitas';
+      else if (action === 'fornecedor') categoria = 'Fornecedores';
+      else if (action === 'salario') categoria = 'Despesa – Folha de Pagamento';
+      
       setReviewState(prev => ({
         ...prev,
         showConfirmDialog: true,
         pendingAction: reviewAction,
-        selectedCategory: action === 'receita' ? 'Receitas' : 'Fornecedores'
+        selectedCategory: categoria
       }));
-      reviewActionForm.setValue('categoria', action === 'receita' ? 'Receitas' : 'Fornecedores');
+      reviewActionForm.setValue('categoria', categoria);
     } else {
-      // Para salário e revisado, executar diretamente
-      executeReviewAction(reviewAction, action === 'revisado' ? item.motivo : '');
+      // Para revisado, executar diretamente
+      executeReviewAction(reviewAction, item.motivo);
     }
   }, [reviewActionForm]);
 
@@ -1868,7 +1873,7 @@ export default function GastosBasilePage() {
                                   </TableRow>
                                 ) : (
                                   processedData.enhancedSummary.filaRevisao.map((item, index) => (
-                                    <TableRow key={index}>
+                                    <TableRow key={index} className={item.revisado ? "bg-green-50 dark:bg-green-900/20" : ""}>
                                       <TableCell className="font-medium" data-testid={`review-queue-date-${index}`}>
                                         {item.data}
                                       </TableCell>
