@@ -601,7 +601,7 @@ export default function GastosBasilePage() {
       reviewActionForm.setValue('categoria', action === 'receita' ? 'Receitas' : 'Fornecedores');
     } else {
       // Para salário e revisado, executar diretamente
-      executeReviewAction(reviewAction, action === 'salario' ? 'Salários' : item.motivo);
+      executeReviewAction(reviewAction, action === 'revisado' ? item.motivo : '');
     }
   }, [reviewActionForm]);
 
@@ -640,11 +640,15 @@ export default function GastosBasilePage() {
       };
 
       const classification = actionToClassification[action.type];
+      // Para tipos específicos, usar categoria do mapeamento interno
+      const finalCategoria = (action.type === 'salario' || action.type === 'receita' || action.type === 'fornecedor') 
+        ? classification.categoria 
+        : categoria;
       
       // Salvar aprendizado via API
       const learnedClassification = {
         historico: action.item.historico,
-        categoria: classification.categoria,
+        categoria: finalCategoria,
         classificacaoFinal: classification.classificacaoFinal,
         ehOperacional: classification.ehOperacional,
         dataAprendizado: new Date().toISOString().split('T')[0], // Format: YYYY-MM-DD
