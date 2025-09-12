@@ -1341,40 +1341,70 @@ export class DatabaseStorage implements IStorage {
     // Categories aggregation
     const categoriesData: { [key: string]: { entradas: number; saidas: number; } } = {};
     
-    // Build conditions for bank transactions
+    // Get ALL bank transactions for the year (we'll filter after advanced classification)
     const bankConditions = [eq(bankTransactions.ano, year)];
-    if (categoria) {
-      bankConditions.push(eq(bankTransactions.categoria, categoria));
-    }
-    
-    // Get bank transactions for the year
     const bankData = await db
       .select()
       .from(bankTransactions)
       .where(and(...bankConditions));
     
-    // Process bank transactions
-    bankData.forEach(transaction => {
-      const valor = parseFloat(transaction.valor);
+    // Convert to ClassifiedTransaction format for advanced processing
+    const transactions = bankData.map(t => ({
+      dateISO: t.dateISO,
+      historico: t.historico,
+      documento: t.documento || '',
+      valor: parseFloat(t.valor),
+      saldo: parseFloat(t.saldo || '0'),
+      categoria: t.categoria,
+      ehOperacional: t.ehOperacional === 1,
+      mes: t.mes,
+      ano: t.ano,
+      isoWeek: t.isoWeek
+    }));
+    
+    // Apply advanced classification (same as upload processing)
+    const { classifyTransactionAdvanced } = await import('../client/src/lib/classification-rules');
+    
+    const annotated = transactions.map(transaction => {
+      const advanced = classifyTransactionAdvanced(
+        transaction.historico,
+        transaction.valor,
+        transaction.dateISO,
+        [], // funcionarios - not needed for annual view
+        []  // fornecedores - not needed for annual view
+      );
+      
+      return {
+        ...transaction,
+        categoria: advanced.categoria,
+        ehOperacional: advanced.ehOperacional,
+        ehMovtoFinanceiro: advanced.ehMovtoFinanceiro,
+        ehImposto: advanced.ehImposto
+      };
+    });
+    
+    // Filter operational transactions (EXCLUDE financial movements) - SAME AS UPLOAD
+    const operationalTransactions = annotated.filter(t => 
+      t.ehOperacional && !t.ehMovtoFinanceiro
+    );
+    
+    // Process operational transactions using VALUE SIGN (same as upload logic)
+    operationalTransactions.forEach(transaction => {
+      const valor = transaction.valor;
       const absValue = Math.abs(valor);
       const month = transaction.mes;
       
-      // Determine if it's entrada or saida based on category, not value sign
-      const isReceita = transaction.categoria?.includes('Receita') || 
-                       transaction.categoria?.includes('PAGAMENTO CARTAO') ||
-                       transaction.categoria?.includes('PIX RECEBIDO');
+      // Apply filters
+      if (categoria && transaction.categoria !== categoria) return;
       
-      // Skip CONTAMAX transactions (should be ignored)
-      if (transaction.categoria?.includes('CONTAMAX') || transaction.categoria?.includes('IGNORAR')) {
-        return;
-      }
-      
-      const tipoTransaction = isReceita ? 'entrada' : 'saida';
+      // Classify by VALUE SIGN (same as upload), not category
+      const isEntrada = valor > 0;  
+      const tipoTransaction = isEntrada ? 'entrada' : 'saida';
       
       if (tipo && tipo !== tipoTransaction) return;
       
       // Add to monthly data
-      if (isReceita) {
+      if (isEntrada) {
         monthsData[month].entradas += absValue;
       } else {
         monthsData[month].saidas += absValue;
@@ -1384,7 +1414,7 @@ export class DatabaseStorage implements IStorage {
       if (!categoriesData[transaction.categoria]) {
         categoriesData[transaction.categoria] = { entradas: 0, saidas: 0 };
       }
-      if (isReceita) {
+      if (isEntrada) {
         categoriesData[transaction.categoria].entradas += absValue;
       } else {
         categoriesData[transaction.categoria].saidas += absValue;
