@@ -54,7 +54,7 @@ export function CloseCashButton({ selectedDate }: CloseCashButtonProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/daily-closure"] });
     },
     onError: (error: any) => {
-      const errorMessage = error.message === "Entry already exists" 
+      const errorMessage = error.message === "Entry already exists"
         ? "Caixa já foi fechado para este dia"
         : "Erro ao fechar caixa";
 
@@ -135,11 +135,11 @@ export function CloseCashButton({ selectedDate }: CloseCashButtonProps) {
 <body>
   <div class="header">
     <h1>Clínica Basile - Relatório do Caixa</h1>
-    <h2>Data: ${new Date(selectedDate).toLocaleDateString('pt-BR', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    <h2>Data: ${new Date(selectedDate).toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     })}</h2>
   </div>
   <div class="summary">
@@ -187,7 +187,7 @@ export function CloseCashButton({ selectedDate }: CloseCashButtonProps) {
     <tbody>
       ${entries && entries.length > 0 ? entries.map(entry => `
         <tr>
-          <td>${entry.patientCode}</td>
+          <td>${entry.patientCode || '-'}</td>
           <td class="patient-name">${entry.patientName}</td>
           <td>${getDoctorLabel(entry.doctor)}</td>
           <td>${entry.procedure}</td>
