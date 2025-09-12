@@ -2191,7 +2191,7 @@ export default function GastosBasilePage() {
                               <TableCell className="font-mono text-sm">
                                 {new Date(expense.data).toLocaleDateString('pt-BR')}
                               </TableCell>
-                              <TableCell className="max-w-0 truncate" title={expense.historico}>
+                              <TableCell className="max-w-xs truncate" title={expense.historico} data-testid={`top-expense-description-${index}`}>
                                 {expense.historico}
                               </TableCell>
                               <TableCell className="text-right font-medium text-red-600">
@@ -2226,7 +2226,7 @@ export default function GastosBasilePage() {
                               <TableCell className="font-mono text-sm">
                                 {new Date(revenue.data).toLocaleDateString('pt-BR')}
                               </TableCell>
-                              <TableCell className="max-w-0 truncate" title={revenue.historico}>
+                              <TableCell className="max-w-xs truncate" title={revenue.historico} data-testid={`top-revenue-description-${index}`}>
                                 {revenue.historico}
                               </TableCell>
                               <TableCell className="text-right font-medium text-green-600">

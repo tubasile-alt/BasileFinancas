@@ -351,8 +351,11 @@ export function detectTax(historico: string): boolean {
     // Casos especiais que precisam de contexto adicional
     if (keyword === 'DAS') {
       // DAS deve aparecer com contexto tributário ou isolado, não como preposição "das"
+      // Excluir casos onde DAS é parte de nome de empresa como "CASA DAS CERAS"
       const dasRegex = /\b(DAS[\s\-]*(SIMPLES|NACIONAL|FEDERAL|TRIBUTO|IMPOSTO)|\bDAS\s*[\d]+|\bDAS\b(?=\s*$)|PAGAMENTO.*DAS|GUIA.*DAS)/i;
-      if (dasRegex.test(historicoUpper)) {
+      const nomeEmpresaRegex = /\b(CASA|LOJA|CLINICA|FARMACIA|COMERCIO)\s+DAS\s+/i;
+      
+      if (dasRegex.test(historicoUpper) && !nomeEmpresaRegex.test(historicoUpper)) {
         return true;
       }
     }
