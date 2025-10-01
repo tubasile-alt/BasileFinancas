@@ -75,8 +75,34 @@ export const procedureCostsByDoctor: Record<string, ProcedureCostData[]> = {
     { name: 'Transplante Capilar', cost: 2000 }, // R$ 2.000 por transplante
     { name: 'Body Hair', cost: 2000 } // R$ 2.000 por procedimento
   ],
+  'dr-basile': [
+    { name: 'Mastopexia com Protese', cost: 1210 },
+    { name: 'Mastopexia', cost: 1210 },
+    { name: 'Silicone', cost: 1089 },
+    { name: 'Face', cost: 2178 },
+    { name: 'Blefaro', cost: 726 },
+    { name: 'Rino ou Ginecomastia', cost: 1210 },
+    { name: 'Lipo com alta no mesmo dia', cost: 1573 },
+    { name: 'Lipo com pernoite', cost: 1815 },
+    { name: 'Abdominoplastia', cost: 1815 },
+    { name: 'IMPLANTE CAPILAR', cost: 1815 },
+    { name: 'Combinada com protese sem Pernoite (protese de mama +nariz ou lipo )', cost: 1815 },
+    { name: 'Combinada sem  protese sem Pernoite (rino + lipo)', cost: 1815 },
+    { name: 'Combinada sem protese com Pernoite (mama reducao c abdomen//face c nariz)', cost: 2178 },
+    { name: 'Combinada com protese com Pernoite (mama c protese + Abdomen)', cost: 2178 },
+    { name: 'pequena cirurgia ( retirada de pintas)', cost: 181.5 },
+    { name: 'retoque', cost: 484 },
+    { name: 'CIRURGIA UNIMED', cost: 60.5 },
+    { name: 'protese de coxa /ou panturrilha', cost: 1197.9 },
+    { name: 'protese glutea', cost: 1331 },
+    { name: 'Otoplastia sem sedacao', cost: 726 },
+    { name: 'contorno corporal (lift de coxa, dorso, braco)', cost: 1512.5 },
+    { name: 'BICHECTOMIA', cost: 605 },
+    { name: 'consulta', cost: 0 },
+    { name: 'cirugia plástica pequena com sedação', cost: 484 }
+  ],
   // Dr. Arthur - custos específicos
-  'dermatologia': [
+  'dr-arthur': [
     { name: 'botox pequeno', cost: 200 },
     { name: 'botox médio', cost: 350 },
     { name: 'botox axila', cost: 530 },
