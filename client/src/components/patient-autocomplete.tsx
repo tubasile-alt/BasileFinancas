@@ -3,12 +3,17 @@ import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Search, User } from "lucide-react";
+import { Search, User, Calendar, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { format } from "date-fns";
 
 interface Patient {
+  id: string;
   patientName: string;
   patientCode: string;
+  entryDate: string;
+  procedure: string;
+  invoiceNumber: string | null;
 }
 
 interface PatientAutocompleteProps {
@@ -54,7 +59,14 @@ export function PatientAutocomplete({ onPatientSelect, selectedPatient, classNam
     
     // Clear selection if user starts typing something different
     if (selectedPatient && value !== selectedPatient.patientName) {
-      onPatientSelect({ patientName: "", patientCode: "" });
+      onPatientSelect({ 
+        id: "",
+        patientName: "", 
+        patientCode: "",
+        entryDate: "",
+        procedure: "",
+        invoiceNumber: null
+      });
     }
   };
 
@@ -69,7 +81,14 @@ export function PatientAutocomplete({ onPatientSelect, selectedPatient, classNam
     setInputValue("");
     setSearchTerm("");
     setIsOpen(false);
-    onPatientSelect({ patientName: "", patientCode: "" });
+    onPatientSelect({ 
+      id: "",
+      patientName: "", 
+      patientCode: "",
+      entryDate: "",
+      procedure: "",
+      invoiceNumber: null
+    });
   };
 
   const filteredPatients = patients.filter(patient =>
@@ -111,22 +130,32 @@ export function PatientAutocomplete({ onPatientSelect, selectedPatient, classNam
       </div>
 
       {isOpen && filteredPatients.length > 0 && (
-        <Card className="absolute z-50 w-full mt-1 max-h-60 overflow-auto shadow-lg border border-border bg-background">
+        <Card className="absolute z-50 w-full mt-1 max-h-96 overflow-auto shadow-lg border border-border bg-background">
           <div className="p-2">
             {filteredPatients.map((patient, index) => (
               <div
-                key={`${patient.patientName}-${patient.patientCode}`}
-                className="flex items-center space-x-3 p-3 rounded-md hover:bg-muted cursor-pointer transition-colors"
+                key={patient.id}
+                className="flex items-start space-x-3 p-3 rounded-md hover:bg-muted cursor-pointer transition-colors border-b last:border-b-0"
                 onClick={() => handlePatientSelect(patient)}
                 data-testid={`option-patient-${index}`}
               >
-                <User className="h-4 w-4 text-muted-foreground" />
+                <User className="h-4 w-4 text-muted-foreground mt-1" />
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm text-foreground truncate">
                     {patient.patientName}
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    Código: {patient.patientCode}
+                  <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      <span>{format(new Date(patient.entryDate), "dd/MM/yyyy")}</span>
+                    </div>
+                    <div className="truncate">{patient.procedure}</div>
+                    {patient.invoiceNumber && (
+                      <div className="flex items-center gap-1 text-blue-600">
+                        <FileText className="h-3 w-3" />
+                        <span>NF: {patient.invoiceNumber}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

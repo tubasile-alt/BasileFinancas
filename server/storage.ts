@@ -60,7 +60,7 @@ export interface IStorage {
     id: string;
     patientName: string; 
     patientCode: string;
-    entryDate: Date;
+    entryDate: string;
     procedure: string;
     invoiceNumber: string | null;
   }>>;
@@ -462,7 +462,7 @@ export class MemStorage implements IStorage {
     id: string;
     patientName: string; 
     patientCode: string;
-    entryDate: Date;
+    entryDate: string;
     procedure: string;
     invoiceNumber: string | null;
   }>> {
@@ -483,7 +483,7 @@ export class MemStorage implements IStorage {
         procedure: entry.procedure,
         invoiceNumber: entry.invoiceNumber || null
       }))
-      .sort((a, b) => b.entryDate.getTime() - a.entryDate.getTime())
+      .sort((a, b) => new Date(b.entryDate).getTime() - new Date(a.entryDate).getTime())
       .slice(0, 20);
   }
 
@@ -1219,7 +1219,7 @@ export class DatabaseStorage implements IStorage {
     id: string;
     patientName: string; 
     patientCode: string;
-    entryDate: Date;
+    entryDate: string;
     procedure: string;
     invoiceNumber: string | null;
   }>> {
