@@ -458,31 +458,33 @@ export class MemStorage implements IStorage {
     };
   }
   
-  async getUniquePatients(searchTerm?: string): Promise<Array<{ patientName: string; patientCode: string; }>> {
-    const entries = Array.from(this.financialEntries.values());
-    const patientsMap = new Map<string, { patientName: string; patientCode: string; }>();
-    
-    entries.forEach(entry => {
-      const key = `${entry.patientName}-${entry.patientCode}`;
-      if (!patientsMap.has(key)) {
-        patientsMap.set(key, {
-          patientName: entry.patientName,
-          patientCode: entry.patientCode
-        });
-      }
-    });
-    
-    let patients = Array.from(patientsMap.values());
+  async getUniquePatients(searchTerm?: string): Promise<Array<{ 
+    id: string;
+    patientName: string; 
+    patientCode: string;
+    entryDate: Date;
+    procedure: string;
+    invoiceNumber: string | null;
+  }>> {
+    let entries = Array.from(this.financialEntries.values());
     
     if (searchTerm && searchTerm.length > 0) {
-      patients = patients.filter(patient => 
-        patient.patientName.toLowerCase().includes(searchTerm.toLowerCase())
+      entries = entries.filter(entry => 
+        entry.patientName.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     
-    return patients
-      .sort((a, b) => a.patientName.localeCompare(b.patientName))
-      .slice(0, 10);
+    return entries
+      .map(entry => ({
+        id: entry.id,
+        patientName: entry.patientName,
+        patientCode: entry.patientCode,
+        entryDate: entry.entryDate,
+        procedure: entry.procedure,
+        invoiceNumber: entry.invoiceNumber || null
+      }))
+      .sort((a, b) => b.entryDate.getTime() - a.entryDate.getTime())
+      .slice(0, 20);
   }
 
   // Bank Transactions CRUD
@@ -1213,14 +1215,24 @@ export class DatabaseStorage implements IStorage {
     };
   }
   
-  async getUniquePatients(searchTerm?: string): Promise<Array<{ patientName: string; patientCode: string; }>> {
+  async getUniquePatients(searchTerm?: string): Promise<Array<{ 
+    id: string;
+    patientName: string; 
+    patientCode: string;
+    entryDate: Date;
+    procedure: string;
+    invoiceNumber: string | null;
+  }>> {
     let query = db.select({
+      id: financialEntries.id,
       patientName: financialEntries.patientName,
-      patientCode: financialEntries.patientCode
+      patientCode: financialEntries.patientCode,
+      entryDate: financialEntries.entryDate,
+      procedure: financialEntries.procedure,
+      invoiceNumber: financialEntries.invoiceNumber
     })
     .from(financialEntries)
-    .groupBy(financialEntries.patientName, financialEntries.patientCode)
-    .orderBy(financialEntries.patientName);
+    .orderBy(sql`${financialEntries.entryDate} DESC`);
     
     if (searchTerm && searchTerm.length > 0) {
       query = query.where(
@@ -1228,7 +1240,7 @@ export class DatabaseStorage implements IStorage {
       ) as typeof query;
     }
     
-    const result = await query.limit(10);
+    const result = await query.limit(20);
     return result;
   }
 
