@@ -56,7 +56,14 @@ export interface IStorage {
   createDailyClosure(closure: InsertDailyClosure): Promise<DailyClosure>;
   getDailyClosure(date: string): Promise<DailyClosure | undefined>;
   
-  getUniquePatients(searchTerm?: string): Promise<Array<{ patientName: string; patientCode: string; }>>;
+  getUniquePatients(searchTerm?: string): Promise<Array<{ 
+    id: string;
+    patientName: string; 
+    patientCode: string;
+    entryDate: Date;
+    procedure: string;
+    invoiceNumber: string | null;
+  }>>;
   
   // Bank Transactions CRUD
   createBankTransaction(transaction: InsertBankTransactionPersistent): Promise<BankTransactionPersistent>;
