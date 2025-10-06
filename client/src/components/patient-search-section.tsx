@@ -4,10 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, User, Edit, Calendar, FileText } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { FinancialEntryForm } from "@/components/financial-entry-form";
-import type { FinancialEntry } from "@shared/schema";
+import { Search, User, Calendar, FileText } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -25,8 +24,7 @@ export function PatientSearchSection() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null);
-  const [invoiceNumbers, setInvoiceNumbers] = useState<Record<string, string>>({});
+  const [invoiceNumber, setInvoiceNumber] = useState("");
   const { toast } = useToast();
 
   const { data: patients = [] } = useQuery<Patient[]>({
@@ -41,39 +39,20 @@ export function PatientSearchSection() {
     enabled: searchTerm.length >= 2,
   });
 
-  const { data: patientEntries = [] } = useQuery<FinancialEntry[]>({
-    queryKey: ["/api/financial-entries", "patient", selectedPatient?.patientName],
-    enabled: !!selectedPatient,
-    select: (entries) => entries.filter(entry => 
-      entry.patientName === selectedPatient?.patientName
-    ),
-  });
-
-  const handlePatientSelect = (patient: Patient) => {
-    setSelectedPatient(patient);
-    setSearchTerm(patient.patientName);
-  };
-
-  const handleEditEntry = (entry: FinancialEntry) => {
-    setEditingEntry(entry);
-    setIsEditDialogOpen(true);
-  };
-
-  const handleEditClose = () => {
-    setEditingEntry(null);
-    setIsEditDialogOpen(false);
-  };
-
   const updateInvoiceMutation = useMutation({
     mutationFn: async ({ entryId, invoiceNumber }: { entryId: string; invoiceNumber: string }) => {
       await apiRequest("PATCH", `/api/financial-entries/${entryId}`, { invoiceNumber });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/financial-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/unique-patients"] });
       toast({
         title: "Sucesso!",
         description: "Número da nota fiscal atualizado.",
       });
+      setIsEditDialogOpen(false);
+      setSearchTerm("");
+      setSelectedPatient(null);
     },
     onError: () => {
       toast({
@@ -84,14 +63,21 @@ export function PatientSearchSection() {
     },
   });
 
-  const handleInvoiceUpdate = (entryId: string) => {
-    const invoiceNumber = invoiceNumbers[entryId];
-    if (invoiceNumber && invoiceNumber.trim()) {
-      updateInvoiceMutation.mutate({ entryId, invoiceNumber: invoiceNumber.trim() });
+  const handlePatientClick = (patient: Patient) => {
+    setSelectedPatient(patient);
+    setInvoiceNumber(patient.invoiceNumber || "");
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveInvoice = () => {
+    if (selectedPatient) {
+      updateInvoiceMutation.mutate({ 
+        entryId: selectedPatient.id, 
+        invoiceNumber: invoiceNumber.trim() 
+      });
     }
   };
 
-  // No need to filter here since backend already filters
   const filteredPatients = patients;
 
   return (
@@ -99,7 +85,7 @@ export function PatientSearchSection() {
       <CardHeader>
         <CardTitle className="flex items-center text-xl font-bold">
           <Search className="mr-3 h-6 w-6 text-primary" />
-          Buscar Pacientes Cadastrados
+          Buscar Pacientes e Editar Nota Fiscal
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -118,29 +104,31 @@ export function PatientSearchSection() {
           </div>
 
           {/* Patient Suggestions */}
-          {searchTerm.length >= 2 && filteredPatients.length > 0 && !selectedPatient && (
+          {searchTerm.length >= 2 && filteredPatients.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-sm font-medium text-muted-foreground">Pacientes encontrados (últimas entradas):</h4>
+              <h4 className="text-sm font-medium text-muted-foreground">
+                Clique no paciente para editar a nota fiscal:
+              </h4>
               <div className="grid gap-2 max-h-96 overflow-y-auto">
                 {filteredPatients.map((patient, index) => (
                   <div
                     key={patient.id}
                     className="flex items-start justify-between p-4 rounded-lg border border-border hover:bg-muted cursor-pointer transition-colors"
-                    onClick={() => handlePatientSelect(patient)}
+                    onClick={() => handlePatientClick(patient)}
                     data-testid={`patient-option-${index}`}
                   >
                     <div className="flex items-start space-x-3 flex-1">
-                      <User className="h-4 w-4 text-muted-foreground mt-1" />
+                      <User className="h-5 w-5 text-muted-foreground mt-1" />
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm">{patient.patientName}</div>
-                        <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                          <div className="flex items-center gap-1">
+                        <div className="font-medium text-base">{patient.patientName}</div>
+                        <div className="text-xs text-muted-foreground mt-1.5 space-y-1">
+                          <div className="flex items-center gap-1.5">
                             <Calendar className="h-3 w-3" />
                             <span>{format(new Date(patient.entryDate), "dd/MM/yyyy")}</span>
                           </div>
                           <div className="truncate">{patient.procedure}</div>
                           {patient.invoiceNumber && (
-                            <div className="flex items-center gap-1 text-blue-600">
+                            <div className="flex items-center gap-1.5 text-blue-600 font-medium">
                               <FileText className="h-3 w-3" />
                               <span>NF: {patient.invoiceNumber}</span>
                             </div>
@@ -149,7 +137,7 @@ export function PatientSearchSection() {
                       </div>
                     </div>
                     <Button variant="outline" size="sm" className="ml-2">
-                      Selecionar
+                      Editar NF
                     </Button>
                   </div>
                 ))}
@@ -170,113 +158,65 @@ export function PatientSearchSection() {
               Digite pelo menos 2 caracteres para buscar
             </div>
           )}
-
-          {/* Selected Patient Entries */}
-          {selectedPatient && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <h3 className="text-lg font-semibold">Entradas de {selectedPatient.patientName}</h3>
-                  <Badge variant="secondary">{patientEntries.length} entradas</Badge>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedPatient(null);
-                    setSearchTerm("");
-                  }}
-                  data-testid="button-clear-selection"
-                >
-                  Nova Busca
-                </Button>
-              </div>
-
-              {patientEntries.length > 0 ? (
-                <div className="space-y-3">
-                  {patientEntries.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="p-4 border border-border rounded-lg hover:bg-muted/30 transition-colors"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="space-y-3 flex-1">
-                          <div className="flex items-center space-x-4">
-                            <div className="flex items-center space-x-2">
-                              <Calendar className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm font-medium">
-                                {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
-                              </span>
-                            </div>
-                            <Badge variant="outline">{entry.doctor}</Badge>
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            <strong>Procedimento:</strong> {entry.procedure}
-                          </div>
-                          <div className="text-sm">
-                            <strong>Valor:</strong> R$ {entry.procedureValue ? Number(entry.procedureValue).toFixed(2).replace('.', ',') : '0,00'}
-                          </div>
-                          
-                          {/* Invoice Number Field */}
-                          <div className="flex items-center gap-2 pt-2">
-                            <FileText className="h-4 w-4 text-muted-foreground" />
-                            <Input
-                              type="text"
-                              placeholder="Número da NF"
-                              defaultValue={entry.invoiceNumber || ""}
-                              onChange={(e) => setInvoiceNumbers(prev => ({ ...prev, [entry.id]: e.target.value }))}
-                              className="max-w-xs"
-                              data-testid={`input-invoice-${entry.id}`}
-                            />
-                            <Button
-                              size="sm"
-                              onClick={() => handleInvoiceUpdate(entry.id)}
-                              disabled={updateInvoiceMutation.isPending}
-                              data-testid={`button-update-invoice-${entry.id}`}
-                            >
-                              {updateInvoiceMutation.isPending ? "Salvando..." : "Salvar NF"}
-                            </Button>
-                          </div>
-                        </div>
-                        
-                        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEditEntry(entry)}
-                              data-testid={`button-edit-entry-${entry.id}`}
-                            >
-                              <Edit className="h-4 w-4 mr-2" />
-                              Editar
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                            <DialogHeader>
-                              <DialogTitle>Editar Entrada - {selectedPatient.patientName}</DialogTitle>
-                            </DialogHeader>
-                            {editingEntry && (
-                              <FinancialEntryForm 
-                                mode="edit" 
-                                editData={editingEntry}
-                                onSuccess={handleEditClose}
-                              />
-                            )}
-                          </DialogContent>
-                        </Dialog>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center text-sm text-muted-foreground p-4 bg-muted/30 rounded-lg">
-                  Nenhuma entrada encontrada para este paciente
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </CardContent>
+
+      {/* Edit Invoice Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Nota Fiscal</DialogTitle>
+          </DialogHeader>
+          
+          {selectedPatient && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <div className="text-sm">
+                  <strong>Paciente:</strong> {selectedPatient.patientName}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  <strong>Data:</strong> {format(new Date(selectedPatient.entryDate), "dd/MM/yyyy")}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  <strong>Procedimento:</strong> {selectedPatient.procedure}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="invoice-number">Número da Nota Fiscal</Label>
+                <Input
+                  id="invoice-number"
+                  type="text"
+                  value={invoiceNumber}
+                  onChange={(e) => setInvoiceNumber(e.target.value)}
+                  placeholder="Digite o número da NF"
+                  data-testid="input-invoice-number"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditDialogOpen(false);
+                setSelectedPatient(null);
+              }}
+              data-testid="button-cancel"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveInvoice}
+              disabled={updateInvoiceMutation.isPending}
+              data-testid="button-save-invoice"
+            >
+              {updateInvoiceMutation.isPending ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
