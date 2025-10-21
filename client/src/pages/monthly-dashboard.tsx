@@ -284,11 +284,8 @@ export default function MonthlyDashboard() {
                             </div>
                           </div>
                           <div className="text-right ml-3">
-                            <div className="font-semibold text-green-600 mb-1">
-                              {formatCurrency(procedure.total)}
-                            </div>
-                            <div className="text-xs text-red-600">
-                              Custo: {formatCurrency(totalCostForProcedure)}
+                            <div className="text-lg font-bold text-red-600">
+                              {formatCurrency(totalCostForProcedure)}
                             </div>
                           </div>
                         </div>
