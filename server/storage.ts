@@ -338,8 +338,9 @@ export class MemStorage implements IStorage {
 
       // Calcular custos dos procedimentos
       const procedureCosts = calculateProcedureCosts(procedures, doctor);
-      // Fisioterapia não paga custos fixos (condomínio + centro cirúrgico)
-      const fixedCosts = doctor === 'fisioterapia' ? 0 : MONTHLY_FIXED_COSTS.total;
+      // Apenas médicos de cirurgia plástica pagam custos fixos (condomínio + centro cirúrgico)
+      const doctorsWithFixedCosts = ['dr-filipe', 'dr-vinicius', 'dr-basile'];
+      const fixedCosts = doctorsWithFixedCosts.includes(doctor) ? MONTHLY_FIXED_COSTS.total : 0;
       const totalCosts = procedureCosts + fixedCosts;
       const profit = data.total - totalCosts;
 
@@ -1092,8 +1093,9 @@ export class DatabaseStorage implements IStorage {
 
       // Calcular custos dos procedimentos
       const procedureCosts = calculateProcedureCosts(procedures, doctor);
-      // Fisioterapia não paga custos fixos (condomínio + centro cirúrgico)
-      const fixedCosts = doctor === 'fisioterapia' ? 0 : MONTHLY_FIXED_COSTS.total;
+      // Apenas médicos de cirurgia plástica pagam custos fixos (condomínio + centro cirúrgico)
+      const doctorsWithFixedCosts = ['dr-filipe', 'dr-vinicius', 'dr-basile'];
+      const fixedCosts = doctorsWithFixedCosts.includes(doctor) ? MONTHLY_FIXED_COSTS.total : 0;
       const totalCosts = procedureCosts + fixedCosts;
       const profit = data.total - totalCosts;
 

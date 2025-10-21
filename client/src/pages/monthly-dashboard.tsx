@@ -242,7 +242,7 @@ export default function MonthlyDashboard() {
                       </div>
                     </div>
                   </div>
-                  {doctor.doctor !== 'fisioterapia' && (
+                  {['dr-filipe', 'dr-vinicius', 'dr-basile'].includes(doctor.doctor) && (
                     <div className="grid grid-cols-2 gap-4 text-sm border-t pt-3">
                       <div>
                         <div className="text-muted-foreground">Condomínio</div>
