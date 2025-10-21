@@ -213,15 +213,9 @@ export default function MonthlyDashboard() {
                     </h3>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-bold text-red-600" data-testid={`doctor-costs-${index}`}>
-                      {formatCurrency(doctor.totalCosts + (Math.max(doctor.cardTotal, doctor.nfTotal) * 0.11))}
-                    </div>
-                    <div className="text-sm text-muted-foreground">Total a Pagar</div>
-                    <div className="text-sm text-blue-600 mt-1">
-                      Cartão: {formatCurrency(doctor.cardTotal)}
-                    </div>
-                    <div className="text-sm text-purple-600">
-                      Com NF: {formatCurrency(doctor.nfTotal)}
+                    <div className="text-sm text-muted-foreground mb-1">Total a Pagar</div>
+                    <div className="text-4xl font-bold text-red-600" data-testid={`doctor-costs-${index}`}>
+                      {formatCurrency(doctor.totalCosts + (doctor.doctor === 'icb-transplante' ? 0 : Math.max(doctor.cardTotal, doctor.nfTotal) * 0.11))}
                     </div>
                   </div>
                 </div>
@@ -242,11 +236,18 @@ export default function MonthlyDashboard() {
                       </div>
                     </div>
                   </div>
-                  {['dr-filipe', 'dr-vinicius', 'dr-basile'].includes(doctor.doctor) && (
+                  {['dr-filipe', 'dr-vinicius', 'dr-basile', 'icb-transplante', 'dr-arthur'].includes(doctor.doctor) && (
                     <div className="grid grid-cols-2 gap-4 text-sm border-t pt-3">
                       <div>
                         <div className="text-muted-foreground">Condomínio</div>
-                        <div className="font-semibold text-red-600">{formatCurrency(MONTHLY_FIXED_COSTS.condominio)}</div>
+                        <div className="font-semibold text-red-600">
+                          {doctor.doctor === 'dr-arthur' 
+                            ? formatCurrency(12000) 
+                            : formatCurrency(MONTHLY_FIXED_COSTS.condominio)}
+                        </div>
+                        {doctor.doctor === 'dr-arthur' && (
+                          <div className="text-xs text-muted-foreground">2 condomínios</div>
+                        )}
                       </div>
                       <div>
                         <div className="text-muted-foreground">Centro Cirúrgico</div>
