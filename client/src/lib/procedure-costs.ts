@@ -12,8 +12,8 @@ export const MONTHLY_FIXED_COSTS = {
   total: 7500 // Total das taxas fixas
 };
 
-// Data de corte para mudança de preços (01/10/2024)
-const PRICE_CHANGE_DATE = new Date('2024-10-01');
+// Data de corte para mudança de preços (01/10/2025)
+const PRICE_CHANGE_DATE = new Date('2025-10-01');
 
 // Custos ANTIGOS dos procedimentos (válidos até 30/09/2024)
 const procedureCostsByDoctorOld: Record<string, ProcedureCostData[]> = {
