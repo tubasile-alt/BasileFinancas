@@ -338,9 +338,18 @@ export class MemStorage implements IStorage {
 
       // Calcular custos dos procedimentos
       const procedureCosts = calculateProcedureCosts(procedures, doctor);
-      // Apenas médicos de cirurgia plástica pagam custos fixos (condomínio + centro cirúrgico)
-      const doctorsWithFixedCosts = ['dr-filipe', 'dr-vinicius', 'dr-basile'];
-      const fixedCosts = doctorsWithFixedCosts.includes(doctor) ? MONTHLY_FIXED_COSTS.total : 0;
+      
+      // Definir custos fixos específicos por médico
+      let fixedCosts = 0;
+      if (['dr-filipe', 'dr-vinicius', 'dr-basile', 'icb-transplante'].includes(doctor)) {
+        // Condomínio R$ 6.000 + Centro Cirúrgico R$ 1.500 = R$ 7.500
+        fixedCosts = 7500;
+      } else if (doctor === 'dr-arthur') {
+        // 2 Condomínios R$ 12.000 + Centro Cirúrgico R$ 1.500 = R$ 13.500
+        fixedCosts = 13500;
+      }
+      // fisioterapia e outros: R$ 0
+      
       const totalCosts = procedureCosts + fixedCosts;
       const profit = data.total - totalCosts;
 
@@ -1093,9 +1102,18 @@ export class DatabaseStorage implements IStorage {
 
       // Calcular custos dos procedimentos
       const procedureCosts = calculateProcedureCosts(procedures, doctor);
-      // Apenas médicos de cirurgia plástica pagam custos fixos (condomínio + centro cirúrgico)
-      const doctorsWithFixedCosts = ['dr-filipe', 'dr-vinicius', 'dr-basile'];
-      const fixedCosts = doctorsWithFixedCosts.includes(doctor) ? MONTHLY_FIXED_COSTS.total : 0;
+      
+      // Definir custos fixos específicos por médico
+      let fixedCosts = 0;
+      if (['dr-filipe', 'dr-vinicius', 'dr-basile', 'icb-transplante'].includes(doctor)) {
+        // Condomínio R$ 6.000 + Centro Cirúrgico R$ 1.500 = R$ 7.500
+        fixedCosts = 7500;
+      } else if (doctor === 'dr-arthur') {
+        // 2 Condomínios R$ 12.000 + Centro Cirúrgico R$ 1.500 = R$ 13.500
+        fixedCosts = 13500;
+      }
+      // fisioterapia e outros: R$ 0
+      
       const totalCosts = procedureCosts + fixedCosts;
       const profit = data.total - totalCosts;
 
