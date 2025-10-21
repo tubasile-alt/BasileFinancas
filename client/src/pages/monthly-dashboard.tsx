@@ -213,9 +213,15 @@ export default function MonthlyDashboard() {
                     </h3>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm text-muted-foreground mb-1">Total a Pagar</div>
                     <div className="text-2xl font-bold text-red-600" data-testid={`doctor-costs-${index}`}>
                       {formatCurrency(doctor.totalCosts + (doctor.doctor === 'icb-transplante' ? 0 : Math.max(doctor.cardTotal, doctor.nfTotal) * 0.11))}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Total a Pagar</div>
+                    <div className="text-sm text-blue-600 mt-1">
+                      Cartão: {formatCurrency(doctor.cardTotal)}
+                    </div>
+                    <div className="text-sm text-purple-600">
+                      Com NF: {formatCurrency(doctor.nfTotal)}
                     </div>
                   </div>
                 </div>
