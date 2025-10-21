@@ -337,7 +337,9 @@ export class MemStorage implements IStorage {
       }));
 
       // Calcular custos dos procedimentos
-      const procedureCosts = calculateProcedureCosts(procedures, doctor);
+      // Usar a primeira data do mês para determinar qual tabela de preços usar
+      const monthDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const procedureCosts = calculateProcedureCosts(procedures, doctor, monthDate);
       
       // Definir custos fixos específicos por médico
       let fixedCosts = 0;
@@ -1101,7 +1103,9 @@ export class DatabaseStorage implements IStorage {
       }));
 
       // Calcular custos dos procedimentos
-      const procedureCosts = calculateProcedureCosts(procedures, doctor);
+      // Usar a primeira data do mês para determinar qual tabela de preços usar
+      const monthDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const procedureCosts = calculateProcedureCosts(procedures, doctor, monthDate);
       
       // Definir custos fixos específicos por médico
       let fixedCosts = 0;

@@ -277,7 +277,9 @@ export default function MonthlyDashboard() {
                   </h4>
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     {doctor.procedures.map((procedure, procIndex) => {
-                      const procedureCost = getProcedureCost(doctor.doctor, procedure.procedure);
+                      // Passar a data do mês selecionado para usar a tabela de preços correta
+                      const monthDate = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
+                      const procedureCost = getProcedureCost(doctor.doctor, procedure.procedure, monthDate);
                       const totalCostForProcedure = procedureCost * procedure.count;
                       return (
                         <div key={procIndex} className="flex justify-between items-center py-2 border-b border-border last:border-b-0">
