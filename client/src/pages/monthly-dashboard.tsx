@@ -203,7 +203,7 @@ export default function MonthlyDashboard() {
           {isLoadingDoctor ? (
             <div className="col-span-full text-center py-8 text-muted-foreground">Carregando dados dos médicos...</div>
           ) : (
-            doctorReport?.map((doctor, index) => (
+            doctorReport?.filter(doctor => doctor.doctor !== 'fisioterapia').map((doctor, index) => (
               <Card key={index} className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-3">
