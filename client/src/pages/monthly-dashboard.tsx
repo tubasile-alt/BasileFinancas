@@ -214,7 +214,7 @@ export default function MonthlyDashboard() {
                   </div>
                   <div className="text-right">
                     <div className="text-sm text-muted-foreground mb-1">Total a Pagar</div>
-                    <div className="text-4xl font-bold text-red-600" data-testid={`doctor-costs-${index}`}>
+                    <div className="text-2xl font-bold text-red-600" data-testid={`doctor-costs-${index}`}>
                       {formatCurrency(doctor.totalCosts + (doctor.doctor === 'icb-transplante' ? 0 : Math.max(doctor.cardTotal, doctor.nfTotal) * 0.11))}
                     </div>
                   </div>
