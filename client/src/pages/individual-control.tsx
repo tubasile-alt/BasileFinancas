@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +17,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Lock, CreditCard, DollarSign, TrendingDown, FileText, Printer } from "lucide-react";
+import { Lock, CreditCard, DollarSign, TrendingDown, FileText, Printer, Trash2 } from "lucide-react";
 import { MainNavigation } from "@/components/main-navigation";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface FinancialEntry {
   id: string;
@@ -49,6 +51,7 @@ interface DoctorReportData {
 }
 
 export default function IndividualControl() {
+  const { toast } = useToast();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState(false);
@@ -82,6 +85,35 @@ export default function IndividualControl() {
     queryKey: ["/api/financial-entries"],
     enabled: isAuthenticated,
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (entryId: string) => {
+      return apiRequest(`/api/financial-entries/${entryId}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/financial-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/monthly-report-by-doctor"] });
+      toast({
+        title: "Sucesso!",
+        description: "Lançamento excluído com sucesso.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Erro ao excluir lançamento. Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDelete = (entryId: string, patientName: string) => {
+    if (window.confirm(`Tem certeza que deseja excluir o lançamento de ${patientName}?`)) {
+      deleteMutation.mutate(entryId);
+    }
+  };
 
   const selectedDoctorData = doctorReport?.find(d => d.doctor === selectedDoctor);
 
@@ -857,7 +889,7 @@ export default function IndividualControl() {
                     className="border rounded-lg p-4 space-y-2"
                     data-testid={`entry-card-${entry.id}`}
                   >
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-start gap-2">
                       <div className="flex-1">
                         <p className="font-medium">{entry.patientName}</p>
                         <p className="text-sm text-muted-foreground">{entry.procedure}</p>
@@ -875,13 +907,24 @@ export default function IndividualControl() {
                           </p>
                         )}
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-blue-600">
-                          {formatCurrency(totalCard)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
-                        </p>
+                      <div className="flex flex-col items-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(entry.id, entry.patientName)}
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          data-testid={`button-delete-${entry.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                        <div className="text-right">
+                          <p className="font-bold text-blue-600">
+                            {formatCurrency(totalCard)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -936,7 +979,7 @@ export default function IndividualControl() {
                     className="border rounded-lg p-4 space-y-2"
                     data-testid={`entry-nf-${entry.id}`}
                   >
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-start gap-2">
                       <div className="flex-1">
                         <p className="font-medium">{entry.patientName}</p>
                         <p className="text-sm text-muted-foreground">{entry.procedure}</p>
@@ -957,13 +1000,24 @@ export default function IndividualControl() {
                           ))}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-purple-600">
-                          {formatCurrency(totalNf)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
-                        </p>
+                      <div className="flex flex-col items-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(entry.id, entry.patientName)}
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          data-testid={`button-delete-${entry.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                        <div className="text-right">
+                          <p className="font-bold text-purple-600">
+                            {formatCurrency(totalNf)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1019,7 +1073,7 @@ export default function IndividualControl() {
                     className="border rounded-lg p-4 space-y-2"
                     data-testid={`entry-pix-${entry.id}`}
                   >
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-start gap-2">
                       <div className="flex-1">
                         <p className="font-medium">{entry.patientName}</p>
                         <p className="text-sm text-muted-foreground">{entry.procedure}</p>
@@ -1029,13 +1083,24 @@ export default function IndividualControl() {
                           </p>
                         )}
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-green-600">
-                          {formatCurrency(totalPix)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
-                        </p>
+                      <div className="flex flex-col items-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(entry.id, entry.patientName)}
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          data-testid={`button-delete-${entry.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                        <div className="text-right">
+                          <p className="font-bold text-green-600">
+                            {formatCurrency(totalPix)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1091,7 +1156,7 @@ export default function IndividualControl() {
                     className="border rounded-lg p-4 space-y-2"
                     data-testid={`entry-money-${entry.id}`}
                   >
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-start gap-2">
                       <div className="flex-1">
                         <p className="font-medium">{entry.patientName}</p>
                         <p className="text-sm text-muted-foreground">{entry.procedure}</p>
@@ -1101,13 +1166,24 @@ export default function IndividualControl() {
                           </p>
                         )}
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-amber-600">
-                          {formatCurrency(totalMoney)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
-                        </p>
+                      <div className="flex flex-col items-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(entry.id, entry.patientName)}
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          data-testid={`button-delete-${entry.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                        <div className="text-right">
+                          <p className="font-bold text-amber-600">
+                            {formatCurrency(totalMoney)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
