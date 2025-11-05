@@ -141,6 +141,303 @@ export default function IndividualControl() {
     }).format(value);
   };
 
+  const printCardList = () => {
+    const sortedEntries = [...cardEntries].sort((a, b) => 
+      new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+    );
+    
+    const printWindow = window.open('', '', 'width=800,height=600');
+    if (!printWindow) return;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Procedimentos com Pagamento em Cartão</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          h1 { font-size: 20px; margin-bottom: 10px; }
+          .summary { background: #f5f5f5; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+          .entry { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 5px; }
+          .entry-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+          .patient-name { font-weight: bold; font-size: 16px; }
+          .procedure { color: #666; font-size: 14px; }
+          .payment-info { color: #666; font-size: 12px; margin-top: 5px; }
+          .total { color: #2563eb; font-weight: bold; font-size: 16px; }
+          .date { color: #666; font-size: 12px; }
+          @media print {
+            body { padding: 10px; }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>Procedimentos com Pagamento em Cartão - ${selectedDoctor}</h1>
+        <div class="summary">
+          <strong>Total em Cartão:</strong> ${formatCurrency(selectedDoctorData?.cardTotal || 0)}<br>
+          <strong>Período:</strong> ${selectedMonth}/${selectedYear}<br>
+          <strong>Lançamentos:</strong> ${sortedEntries.length}
+        </div>
+        ${sortedEntries.map(entry => {
+          const cardPayments = entry.paymentDetails?.filter(pd => 
+            pd.method === 'cartao_credito' || pd.method === 'cartao_debito'
+          ) || [];
+          const totalCard = cardPayments.reduce((sum, pd) => sum + pd.value, 0);
+          
+          return `
+            <div class="entry">
+              <div class="entry-header">
+                <div>
+                  <div class="patient-name">${entry.patientName}</div>
+                  <div class="procedure">${entry.procedure}</div>
+                  ${cardPayments.map(pd => `
+                    <div class="payment-info">
+                      ${pd.method === 'cartao_credito' ? 'Crédito' : 'Débito'}: ${formatCurrency(pd.value)}
+                      ${pd.installments > 1 ? ` (${pd.installments}x)` : ''}
+                    </div>
+                  `).join('')}
+                  ${entry.invoiceNumber ? `<div class="payment-info">NF: ${entry.invoiceNumber}</div>` : ''}
+                </div>
+                <div style="text-align: right;">
+                  <div class="total">${formatCurrency(totalCard)}</div>
+                  <div class="date">${new Date(entry.entryDate).toLocaleDateString('pt-BR')}</div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </body>
+      </html>
+    `;
+    
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  };
+
+  const printPixList = () => {
+    const sortedEntries = [...pixEntries].sort((a, b) => 
+      new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+    );
+    
+    const printWindow = window.open('', '', 'width=800,height=600');
+    if (!printWindow) return;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Procedimentos com Pagamento em PIX</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          h1 { font-size: 20px; margin-bottom: 10px; }
+          .summary { background: #f5f5f5; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+          .entry { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 5px; }
+          .entry-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+          .patient-name { font-weight: bold; font-size: 16px; }
+          .procedure { color: #666; font-size: 14px; }
+          .payment-info { color: #666; font-size: 12px; margin-top: 5px; }
+          .total { color: #16a34a; font-weight: bold; font-size: 16px; }
+          .date { color: #666; font-size: 12px; }
+          @media print {
+            body { padding: 10px; }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>Procedimentos com Pagamento em PIX - ${selectedDoctor}</h1>
+        <div class="summary">
+          <strong>Total em PIX:</strong> ${formatCurrency(pixTotal)}<br>
+          <strong>Período:</strong> ${selectedMonth}/${selectedYear}<br>
+          <strong>Lançamentos:</strong> ${sortedEntries.length}
+        </div>
+        ${sortedEntries.map(entry => {
+          const pixPayments = entry.paymentDetails?.filter(pd => pd.method === 'pix') || [];
+          const totalPix = pixPayments.reduce((sum, pd) => sum + pd.value, 0);
+          
+          return `
+            <div class="entry">
+              <div class="entry-header">
+                <div>
+                  <div class="patient-name">${entry.patientName}</div>
+                  <div class="procedure">${entry.procedure}</div>
+                  ${pixPayments.map(pd => `
+                    <div class="payment-info">PIX: ${formatCurrency(pd.value)}</div>
+                  `).join('')}
+                  ${entry.invoiceNumber ? `<div class="payment-info">NF: ${entry.invoiceNumber}</div>` : ''}
+                </div>
+                <div style="text-align: right;">
+                  <div class="total">${formatCurrency(totalPix)}</div>
+                  <div class="date">${new Date(entry.entryDate).toLocaleDateString('pt-BR')}</div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </body>
+      </html>
+    `;
+    
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  };
+
+  const printMoneyList = () => {
+    const sortedEntries = [...moneyEntries].sort((a, b) => 
+      new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+    );
+    
+    const printWindow = window.open('', '', 'width=800,height=600');
+    if (!printWindow) return;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Procedimentos com Pagamento em Dinheiro</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          h1 { font-size: 20px; margin-bottom: 10px; }
+          .summary { background: #f5f5f5; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+          .entry { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 5px; }
+          .entry-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+          .patient-name { font-weight: bold; font-size: 16px; }
+          .procedure { color: #666; font-size: 14px; }
+          .payment-info { color: #666; font-size: 12px; margin-top: 5px; }
+          .total { color: #d97706; font-weight: bold; font-size: 16px; }
+          .date { color: #666; font-size: 12px; }
+          @media print {
+            body { padding: 10px; }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>Procedimentos com Pagamento em Dinheiro - ${selectedDoctor}</h1>
+        <div class="summary">
+          <strong>Total em Dinheiro:</strong> ${formatCurrency(moneyTotal)}<br>
+          <strong>Período:</strong> ${selectedMonth}/${selectedYear}<br>
+          <strong>Lançamentos:</strong> ${sortedEntries.length}
+        </div>
+        ${sortedEntries.map(entry => {
+          const moneyPayments = entry.paymentDetails?.filter(pd => pd.method === 'dinheiro') || [];
+          const totalMoney = moneyPayments.reduce((sum, pd) => sum + pd.value, 0);
+          
+          return `
+            <div class="entry">
+              <div class="entry-header">
+                <div>
+                  <div class="patient-name">${entry.patientName}</div>
+                  <div class="procedure">${entry.procedure}</div>
+                  ${moneyPayments.map(pd => `
+                    <div class="payment-info">Dinheiro: ${formatCurrency(pd.value)}</div>
+                  `).join('')}
+                  ${entry.invoiceNumber ? `<div class="payment-info">NF: ${entry.invoiceNumber}</div>` : ''}
+                </div>
+                <div style="text-align: right;">
+                  <div class="total">${formatCurrency(totalMoney)}</div>
+                  <div class="date">${new Date(entry.entryDate).toLocaleDateString('pt-BR')}</div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </body>
+      </html>
+    `;
+    
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  };
+
+  const printNfList = () => {
+    const sortedEntries = [...nfEntries].sort((a, b) => 
+      new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+    );
+    
+    const printWindow = window.open('', '', 'width=800,height=600');
+    if (!printWindow) return;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Procedimentos com Nota Fiscal</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          h1 { font-size: 20px; margin-bottom: 10px; }
+          .summary { background: #f5f5f5; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+          .entry { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 5px; }
+          .entry-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+          .patient-name { font-weight: bold; font-size: 16px; }
+          .procedure { color: #666; font-size: 14px; }
+          .payment-info { color: #666; font-size: 12px; margin-top: 5px; }
+          .total { color: #9333ea; font-weight: bold; font-size: 16px; }
+          .date { color: #666; font-size: 12px; }
+          @media print {
+            body { padding: 10px; }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>Procedimentos com Nota Fiscal - ${selectedDoctor}</h1>
+        <div class="summary">
+          <strong>Total em NF:</strong> ${formatCurrency(selectedDoctorData?.nfTotal || 0)}<br>
+          <strong>Período:</strong> ${selectedMonth}/${selectedYear}<br>
+          <strong>Lançamentos:</strong> ${sortedEntries.length}
+        </div>
+        ${sortedEntries.map(entry => {
+          const totalNf = entry.paymentDetails?.reduce((sum, pd) => sum + pd.value, 0) || 0;
+          
+          return `
+            <div class="entry">
+              <div class="entry-header">
+                <div>
+                  <div class="patient-name">${entry.patientName}</div>
+                  <div class="procedure">${entry.procedure}</div>
+                  <div class="payment-info">NF: ${entry.invoiceNumber || 'N/A'}</div>
+                  ${entry.paymentDetails?.map(pd => `
+                    <div class="payment-info">
+                      ${pd.method === 'cartao_credito' ? 'Crédito' : 
+                        pd.method === 'cartao_debito' ? 'Débito' : 
+                        pd.method === 'pix' ? 'PIX' : 'Dinheiro'}: ${formatCurrency(pd.value)}
+                      ${pd.installments > 1 ? ` (${pd.installments}x)` : ''}
+                    </div>
+                  `).join('') || ''}
+                </div>
+                <div style="text-align: right;">
+                  <div class="total">${formatCurrency(totalNf)}</div>
+                  <div class="date">${new Date(entry.entryDate).toLocaleDateString('pt-BR')}</div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </body>
+      </html>
+    `;
+    
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  };
+
   const months = [
     { value: 1, label: 'Janeiro' },
     { value: 2, label: 'Fevereiro' },
@@ -522,7 +819,7 @@ export default function IndividualControl() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.print()}
+                onClick={printCardList}
                 className="gap-2"
                 data-testid="button-print-card"
               >
@@ -546,7 +843,9 @@ export default function IndividualControl() {
                     {cardEntries.length} {cardEntries.length === 1 ? 'lançamento' : 'lançamentos'}
                   </p>
                 </div>
-                {cardEntries.map((entry) => {
+                {[...cardEntries].sort((a, b) => 
+                  new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+                ).map((entry) => {
                   const cardPayments = entry.paymentDetails?.filter(pd => 
                     pd.method === 'cartao_credito' || pd.method === 'cartao_debito'
                   ) || [];
@@ -602,7 +901,7 @@ export default function IndividualControl() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.print()}
+                onClick={printNfList}
                 className="gap-2"
                 data-testid="button-print-nf"
               >
@@ -626,7 +925,9 @@ export default function IndividualControl() {
                     {nfEntries.length} {nfEntries.length === 1 ? 'lançamento' : 'lançamentos'}
                   </p>
                 </div>
-                {nfEntries.map((entry) => {
+                {[...nfEntries].sort((a, b) => 
+                  new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+                ).map((entry) => {
                   const totalNf = entry.paymentDetails?.reduce((sum, pd) => sum + pd.value, 0) || 0;
                   
                   return (
@@ -682,7 +983,7 @@ export default function IndividualControl() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.print()}
+                onClick={printPixList}
                 className="gap-2"
                 data-testid="button-print-pix"
               >
@@ -706,7 +1007,9 @@ export default function IndividualControl() {
                     {pixEntries.length} {pixEntries.length === 1 ? 'lançamento' : 'lançamentos'}
                   </p>
                 </div>
-                {pixEntries.map((entry) => {
+                {[...pixEntries].sort((a, b) => 
+                  new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+                ).map((entry) => {
                   const pixPayments = entry.paymentDetails?.filter(pd => pd.method === 'pix') || [];
                   const totalPix = pixPayments.reduce((sum, pd) => sum + pd.value, 0);
                   
@@ -752,7 +1055,7 @@ export default function IndividualControl() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.print()}
+                onClick={printMoneyList}
                 className="gap-2"
                 data-testid="button-print-money"
               >
@@ -776,7 +1079,9 @@ export default function IndividualControl() {
                     {moneyEntries.length} {moneyEntries.length === 1 ? 'lançamento' : 'lançamentos'}
                   </p>
                 </div>
-                {moneyEntries.map((entry) => {
+                {[...moneyEntries].sort((a, b) => 
+                  new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+                ).map((entry) => {
                   const moneyPayments = entry.paymentDetails?.filter(pd => pd.method === 'dinheiro') || [];
                   const totalMoney = moneyPayments.reduce((sum, pd) => sum + pd.value, 0);
                   
