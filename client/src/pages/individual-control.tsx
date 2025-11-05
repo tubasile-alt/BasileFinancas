@@ -88,9 +88,7 @@ export default function IndividualControl() {
 
   const deleteMutation = useMutation({
     mutationFn: async (entryId: string) => {
-      return apiRequest(`/api/financial-entries/${entryId}`, {
-        method: 'DELETE',
-      });
+      return apiRequest('DELETE', `/api/financial-entries/${entryId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/financial-entries"] });
