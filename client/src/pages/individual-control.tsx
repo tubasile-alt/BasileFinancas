@@ -361,7 +361,7 @@ export default function IndividualControl() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600" data-testid="text-card-total">
-                {formatCurrency(cardTotal)}
+                {formatCurrency(selectedDoctorData.cardTotal)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {cardEntries.length} lançamentos • Clique
@@ -424,7 +424,7 @@ export default function IndividualControl() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-purple-600" data-testid="text-nf-total">
-                {formatCurrency(nfTotal)}
+                {formatCurrency(selectedDoctorData.nfTotal)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {nfEntries.length} lançamentos • Clique
