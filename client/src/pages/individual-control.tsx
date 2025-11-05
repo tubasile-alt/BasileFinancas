@@ -23,6 +23,7 @@ import { MainNavigation } from "@/components/main-navigation";
 interface FinancialEntry {
   id: string;
   patientName: string;
+  doctor: string;
   procedure: string;
   procedureValue: number;
   paymentDetails: {
@@ -75,20 +76,28 @@ export default function IndividualControl() {
     enabled: isAuthenticated && !!selectedYear && !!selectedMonth,
   });
 
-  const { data: entries } = useQuery<FinancialEntry[]>({
-    queryKey: ["/api/financial-entries", selectedYear, selectedMonth, selectedDoctor],
-    enabled: isAuthenticated && !!selectedDoctor && !!selectedYear && !!selectedMonth,
+  const { data: allEntries } = useQuery<FinancialEntry[]>({
+    queryKey: ["/api/financial-entries"],
+    enabled: isAuthenticated,
   });
 
   const selectedDoctorData = doctorReport?.find(d => d.doctor === selectedDoctor);
 
-  const cardEntries = entries?.filter(e => 
-    e.paymentDetails?.method === 'card' || e.paymentDetails?.card
-  ) || [];
+  // Filtrar entradas do médico e mês selecionados
+  const entries = allEntries?.filter(e => {
+    if (e.doctor !== selectedDoctor) return false;
+    const entryDate = new Date(e.entryDate);
+    return entryDate.getFullYear() === selectedYear && 
+           (entryDate.getMonth() + 1) === selectedMonth;
+  }) || [];
 
-  const nfEntries = entries?.filter(e => 
+  const cardEntries = entries.filter(e => 
+    e.paymentDetails?.card && e.paymentDetails.card > 0
+  );
+
+  const nfEntries = entries.filter(e => 
     e.paymentDetails?.nf && e.paymentDetails.nf > 0
-  ) || [];
+  );
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -246,6 +255,7 @@ export default function IndividualControl() {
       </Card>
 
       {selectedDoctorData && (
+        <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -323,20 +333,94 @@ export default function IndividualControl() {
             </CardContent>
           </Card>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Procedimentos do Mês</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {selectedDoctorData.procedures.map((proc, index) => (
+                <div
+                  key={index}
+                  className="flex justify-between items-center py-2 border-b last:border-b-0"
+                  data-testid={`procedure-${index}`}
+                >
+                  <div>
+                    <p className="font-medium">{proc.procedure}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {proc.count} {proc.count === 1 ? 'procedimento' : 'procedimentos'}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-green-600">
+                      {formatCurrency(proc.total)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Detalhamento de Custos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Custos de Procedimentos:</span>
+                <span className="font-semibold text-red-600">
+                  {formatCurrency(selectedDoctorData.procedureCosts)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Custos Fixos (Condomínio + Centro Cirúrgico):</span>
+                <span className="font-semibold text-red-600">
+                  {formatCurrency(selectedDoctorData.fixedCosts)}
+                </span>
+              </div>
+              <div className="h-px bg-border my-2"></div>
+              <div className="flex justify-between items-center">
+                <span className="font-bold">Total de Gastos:</span>
+                <span className="font-bold text-red-600 text-lg">
+                  {formatCurrency(selectedDoctorData.totalCosts)}
+                </span>
+              </div>
+              <div className="h-px bg-border my-2"></div>
+              <div className="flex justify-between items-center">
+                <span className="font-bold">Lucro Líquido:</span>
+                <span className="font-bold text-green-600 text-lg">
+                  {formatCurrency(selectedDoctorData.profit)}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        </>
       )}
 
       <Dialog open={showCardModal} onOpenChange={setShowCardModal}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Lançamentos de Cartão</DialogTitle>
+            <DialogTitle>Procedimentos com Pagamento em Cartão</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
             {cardEntries.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">
-                Nenhum lançamento de cartão encontrado
+                Nenhum procedimento com pagamento em cartão encontrado
               </p>
             ) : (
               <div className="space-y-2">
+                <div className="bg-muted p-3 rounded-lg mb-3">
+                  <p className="text-sm">
+                    <strong>Total em Cartão:</strong> {formatCurrency(selectedDoctorData?.cardTotal || 0)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {cardEntries.length} {cardEntries.length === 1 ? 'lançamento' : 'lançamentos'}
+                  </p>
+                </div>
                 {cardEntries.map((entry) => (
                   <div
                     key={entry.id}
@@ -344,12 +428,17 @@ export default function IndividualControl() {
                     data-testid={`entry-card-${entry.id}`}
                   >
                     <div className="flex justify-between items-start">
-                      <div>
+                      <div className="flex-1">
                         <p className="font-medium">{entry.patientName}</p>
                         <p className="text-sm text-muted-foreground">{entry.procedure}</p>
+                        {entry.invoiceNumber && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            NF: {entry.invoiceNumber}
+                          </p>
+                        )}
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-green-600">
+                        <p className="font-bold text-blue-600">
                           {formatCurrency(entry.paymentDetails?.card || 0)}
                         </p>
                         <p className="text-xs text-muted-foreground">
@@ -357,11 +446,6 @@ export default function IndividualControl() {
                         </p>
                       </div>
                     </div>
-                    {entry.invoiceNumber && (
-                      <p className="text-xs text-muted-foreground">
-                        NF: {entry.invoiceNumber}
-                      </p>
-                    )}
                   </div>
                 ))}
               </div>
@@ -373,15 +457,23 @@ export default function IndividualControl() {
       <Dialog open={showNfModal} onOpenChange={setShowNfModal}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Notas Fiscais</DialogTitle>
+            <DialogTitle>Procedimentos com Nota Fiscal</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
             {nfEntries.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">
-                Nenhuma nota fiscal encontrada
+                Nenhum procedimento com nota fiscal encontrado
               </p>
             ) : (
               <div className="space-y-2">
+                <div className="bg-muted p-3 rounded-lg mb-3">
+                  <p className="text-sm">
+                    <strong>Total em NF:</strong> {formatCurrency(selectedDoctorData?.nfTotal || 0)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {nfEntries.length} {nfEntries.length === 1 ? 'lançamento' : 'lançamentos'}
+                  </p>
+                </div>
                 {nfEntries.map((entry) => (
                   <div
                     key={entry.id}
@@ -389,9 +481,14 @@ export default function IndividualControl() {
                     data-testid={`entry-nf-${entry.id}`}
                   >
                     <div className="flex justify-between items-start">
-                      <div>
+                      <div className="flex-1">
                         <p className="font-medium">{entry.patientName}</p>
                         <p className="text-sm text-muted-foreground">{entry.procedure}</p>
+                        {entry.invoiceNumber && (
+                          <p className="text-xs font-medium text-primary mt-1">
+                            NF: {entry.invoiceNumber}
+                          </p>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-purple-600">
@@ -402,11 +499,6 @@ export default function IndividualControl() {
                         </p>
                       </div>
                     </div>
-                    {entry.invoiceNumber && (
-                      <p className="text-xs font-medium">
-                        NF: {entry.invoiceNumber}
-                      </p>
-                    )}
                   </div>
                 ))}
               </div>
