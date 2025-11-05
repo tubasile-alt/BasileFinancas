@@ -100,9 +100,9 @@ export default function IndividualControl() {
     )
   );
 
-  // Filtrar entradas com nota fiscal
+  // Filtrar entradas com nota fiscal (baseado no campo invoiceNumber)
   const nfEntries = entries.filter(e => 
-    e.paymentDetails?.some(pd => pd.method === 'nf')
+    e.invoiceNumber && e.invoiceNumber.trim() !== ''
   );
 
   // Filtrar entradas com PIX
@@ -125,9 +125,14 @@ export default function IndividualControl() {
   };
 
   const cardTotal = calculatePaymentTotal(entries, ['cartao_credito', 'cartao_debito']);
-  const nfTotal = calculatePaymentTotal(entries, 'nf');
   const pixTotal = calculatePaymentTotal(entries, 'pix');
   const moneyTotal = calculatePaymentTotal(entries, 'dinheiro');
+  
+  // NF Total é o valor TOTAL das entradas que têm número de NF
+  const nfTotal = nfEntries.reduce((total, entry) => {
+    const entryTotal = entry.paymentDetails?.reduce((sum, pd) => sum + pd.value, 0) || 0;
+    return total + entryTotal;
+  }, 0);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -598,8 +603,7 @@ export default function IndividualControl() {
                   </p>
                 </div>
                 {nfEntries.map((entry) => {
-                  const nfPayments = entry.paymentDetails?.filter(pd => pd.method === 'nf') || [];
-                  const totalNf = nfPayments.reduce((sum, pd) => sum + pd.value, 0);
+                  const totalNf = entry.paymentDetails?.reduce((sum, pd) => sum + pd.value, 0) || 0;
                   
                   return (
                   <div
@@ -616,6 +620,17 @@ export default function IndividualControl() {
                             NF: {entry.invoiceNumber}
                           </p>
                         )}
+                        <div className="mt-1">
+                          {entry.paymentDetails?.map((pd, idx) => (
+                            <p key={idx} className="text-xs text-muted-foreground">
+                              {pd.method === 'cartao_credito' ? 'Crédito' : 
+                               pd.method === 'cartao_debito' ? 'Débito' : 
+                               pd.method === 'pix' ? 'PIX' : 
+                               pd.method === 'dinheiro' ? 'Dinheiro' : pd.method}: {formatCurrency(pd.value)}
+                              {pd.installments > 1 && ` (${pd.installments}x)`}
+                            </p>
+                          ))}
+                        </div>
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-purple-600">
