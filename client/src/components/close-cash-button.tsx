@@ -135,7 +135,7 @@ export function CloseCashButton({ selectedDate }: CloseCashButtonProps) {
 <body>
   <div class="header">
     <h1>Clínica Basile - Relatório do Caixa</h1>
-    <h2>Data: ${new Date(selectedDate).toLocaleDateString('pt-BR', {
+    <h2>Data: ${new Date(selectedDate + 'T12:00:00').toLocaleDateString('pt-BR', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
