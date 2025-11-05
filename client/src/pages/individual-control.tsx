@@ -92,7 +92,8 @@ export default function IndividualControl() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/financial-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/monthly-report-by-doctor"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/monthly-report-by-doctor", selectedYear, selectedMonth] });
+      queryClient.invalidateQueries({ queryKey: ["/api/daily-summary"] });
       toast({
         title: "Sucesso!",
         description: "Lançamento excluído com sucesso.",
