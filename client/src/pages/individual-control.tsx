@@ -26,11 +26,11 @@ interface FinancialEntry {
   doctor: string;
   procedure: string;
   procedureValue: number;
-  paymentDetails: {
+  paymentDetails: Array<{
     method: string;
-    card?: number;
-    nf?: number;
-  };
+    value: number;
+    installments: number;
+  }>;
   invoiceNumber?: string;
   entryDate: string;
 }
@@ -91,12 +91,16 @@ export default function IndividualControl() {
            (entryDate.getMonth() + 1) === selectedMonth;
   }) || [];
 
+  // Filtrar entradas com pagamento em cartão (crédito ou débito)
   const cardEntries = entries.filter(e => 
-    e.paymentDetails?.card && e.paymentDetails.card > 0
+    e.paymentDetails?.some(pd => 
+      pd.method === 'cartao_credito' || pd.method === 'cartao_debito'
+    )
   );
 
+  // Filtrar entradas com nota fiscal
   const nfEntries = entries.filter(e => 
-    e.paymentDetails?.nf && e.paymentDetails.nf > 0
+    e.paymentDetails?.some(pd => pd.method === 'nf')
   );
 
   const formatCurrency = (value: number) => {
@@ -283,10 +287,13 @@ export default function IndividualControl() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-600" data-testid="text-costs">
-                {formatCurrency(selectedDoctorData.totalCosts)}
+                {formatCurrency(
+                  selectedDoctorData.totalCosts + 
+                  (selectedDoctorData.doctor === 'icb-transplante' ? 0 : Math.max(selectedDoctorData.cardTotal, selectedDoctorData.nfTotal) * 0.11)
+                )}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Procedimentos + Fixo
+                Inclui taxa de 11%
               </p>
             </CardContent>
           </Card>
@@ -376,23 +383,37 @@ export default function IndividualControl() {
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Custos Fixos (Condomínio + Centro Cirúrgico):</span>
+                <span className="text-muted-foreground">Taxa 11%:</span>
+                <span className="font-semibold text-orange-600">
+                  {selectedDoctorData.doctor === 'icb-transplante' ? 
+                    formatCurrency(0) : 
+                    formatCurrency(Math.max(selectedDoctorData.cardTotal, selectedDoctorData.nfTotal) * 0.11)
+                  }
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Condomínio:</span>
                 <span className="font-semibold text-red-600">
-                  {formatCurrency(selectedDoctorData.fixedCosts)}
+                  {selectedDoctorData.doctor === 'dr-arthur' ? 
+                    formatCurrency(12000) : 
+                    formatCurrency(6000)
+                  }
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Centro Cirúrgico:</span>
+                <span className="font-semibold text-red-600">
+                  {formatCurrency(1500)}
                 </span>
               </div>
               <div className="h-px bg-border my-2"></div>
               <div className="flex justify-between items-center">
-                <span className="font-bold">Total de Gastos:</span>
+                <span className="font-bold">TOTAL A PAGAR:</span>
                 <span className="font-bold text-red-600 text-lg">
-                  {formatCurrency(selectedDoctorData.totalCosts)}
-                </span>
-              </div>
-              <div className="h-px bg-border my-2"></div>
-              <div className="flex justify-between items-center">
-                <span className="font-bold">Lucro Líquido:</span>
-                <span className="font-bold text-green-600 text-lg">
-                  {formatCurrency(selectedDoctorData.profit)}
+                  {formatCurrency(
+                    selectedDoctorData.totalCosts + 
+                    (selectedDoctorData.doctor === 'icb-transplante' ? 0 : Math.max(selectedDoctorData.cardTotal, selectedDoctorData.nfTotal) * 0.11)
+                  )}
                 </span>
               </div>
             </div>
@@ -421,7 +442,13 @@ export default function IndividualControl() {
                     {cardEntries.length} {cardEntries.length === 1 ? 'lançamento' : 'lançamentos'}
                   </p>
                 </div>
-                {cardEntries.map((entry) => (
+                {cardEntries.map((entry) => {
+                  const cardPayments = entry.paymentDetails?.filter(pd => 
+                    pd.method === 'cartao_credito' || pd.method === 'cartao_debito'
+                  ) || [];
+                  const totalCard = cardPayments.reduce((sum, pd) => sum + pd.value, 0);
+                  
+                  return (
                   <div
                     key={entry.id}
                     className="border rounded-lg p-4 space-y-2"
@@ -431,6 +458,14 @@ export default function IndividualControl() {
                       <div className="flex-1">
                         <p className="font-medium">{entry.patientName}</p>
                         <p className="text-sm text-muted-foreground">{entry.procedure}</p>
+                        <div className="mt-1">
+                          {cardPayments.map((pd, idx) => (
+                            <p key={idx} className="text-xs text-muted-foreground">
+                              {pd.method === 'cartao_credito' ? 'Crédito' : 'Débito'}: {formatCurrency(pd.value)}
+                              {pd.installments > 1 && ` (${pd.installments}x)`}
+                            </p>
+                          ))}
+                        </div>
                         {entry.invoiceNumber && (
                           <p className="text-xs text-muted-foreground mt-1">
                             NF: {entry.invoiceNumber}
@@ -439,7 +474,7 @@ export default function IndividualControl() {
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-blue-600">
-                          {formatCurrency(entry.paymentDetails?.card || 0)}
+                          {formatCurrency(totalCard)}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
@@ -447,7 +482,8 @@ export default function IndividualControl() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -474,7 +510,11 @@ export default function IndividualControl() {
                     {nfEntries.length} {nfEntries.length === 1 ? 'lançamento' : 'lançamentos'}
                   </p>
                 </div>
-                {nfEntries.map((entry) => (
+                {nfEntries.map((entry) => {
+                  const nfPayments = entry.paymentDetails?.filter(pd => pd.method === 'nf') || [];
+                  const totalNf = nfPayments.reduce((sum, pd) => sum + pd.value, 0);
+                  
+                  return (
                   <div
                     key={entry.id}
                     className="border rounded-lg p-4 space-y-2"
@@ -492,7 +532,7 @@ export default function IndividualControl() {
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-purple-600">
-                          {formatCurrency(entry.paymentDetails?.nf || 0)}
+                          {formatCurrency(totalNf)}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
@@ -500,7 +540,8 @@ export default function IndividualControl() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
