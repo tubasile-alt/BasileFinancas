@@ -60,6 +60,8 @@ export default function IndividualControl() {
   
   const [showCardModal, setShowCardModal] = useState(false);
   const [showNfModal, setShowNfModal] = useState(false);
+  const [showPixModal, setShowPixModal] = useState(false);
+  const [showMoneyModal, setShowMoneyModal] = useState(false);
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,6 +104,30 @@ export default function IndividualControl() {
   const nfEntries = entries.filter(e => 
     e.paymentDetails?.some(pd => pd.method === 'nf')
   );
+
+  // Filtrar entradas com PIX
+  const pixEntries = entries.filter(e => 
+    e.paymentDetails?.some(pd => pd.method === 'pix')
+  );
+
+  // Filtrar entradas com dinheiro
+  const moneyEntries = entries.filter(e => 
+    e.paymentDetails?.some(pd => pd.method === 'dinheiro')
+  );
+
+  // Calcular totais
+  const calculatePaymentTotal = (entries: FinancialEntry[], method: string | string[]) => {
+    const methods = Array.isArray(method) ? method : [method];
+    return entries.reduce((total, entry) => {
+      const payments = entry.paymentDetails?.filter(pd => methods.includes(pd.method)) || [];
+      return total + payments.reduce((sum, pd) => sum + pd.value, 0);
+    }, 0);
+  };
+
+  const cardTotal = calculatePaymentTotal(entries, ['cartao_credito', 'cartao_debito']);
+  const nfTotal = calculatePaymentTotal(entries, 'nf');
+  const pixTotal = calculatePaymentTotal(entries, 'pix');
+  const moneyTotal = calculatePaymentTotal(entries, 'dinheiro');
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -260,7 +286,7 @@ export default function IndividualControl() {
 
       {selectedDoctorData && (
         <>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
@@ -298,6 +324,25 @@ export default function IndividualControl() {
             </CardContent>
           </Card>
 
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Lucro Líquido
+              </CardTitle>
+              <TrendingDown className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600" data-testid="text-profit">
+                {formatCurrency(selectedDoctorData.profit)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Faturamento - Custos
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card
             className="cursor-pointer hover:bg-accent transition-colors"
             onClick={() => setShowCardModal(true)}
@@ -305,16 +350,58 @@ export default function IndividualControl() {
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Pagamentos Cartão
+                Cartão
               </CardTitle>
               <CreditCard className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600" data-testid="text-card-total">
-                {formatCurrency(selectedDoctorData.cardTotal)}
+                {formatCurrency(cardTotal)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {cardEntries.length} lançamentos • Clique para ver
+                {cardEntries.length} lançamentos • Clique
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="cursor-pointer hover:bg-accent transition-colors"
+            onClick={() => setShowPixModal(true)}
+            data-testid="card-pix-payments"
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                PIX
+              </CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600" data-testid="text-pix-total">
+                {formatCurrency(pixTotal)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {pixEntries.length} lançamentos • Clique
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="cursor-pointer hover:bg-accent transition-colors"
+            onClick={() => setShowMoneyModal(true)}
+            data-testid="card-money-payments"
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Dinheiro
+              </CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-amber-600" data-testid="text-money-total">
+                {formatCurrency(moneyTotal)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {moneyEntries.length} lançamentos • Clique
               </p>
             </CardContent>
           </Card>
@@ -326,16 +413,16 @@ export default function IndividualControl() {
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Notas Fiscais
+                Nota Fiscal
               </CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-purple-600" data-testid="text-nf-total">
-                {formatCurrency(selectedDoctorData.nfTotal)}
+                {formatCurrency(nfTotal)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {nfEntries.length} lançamentos • Clique para ver
+                {nfEntries.length} lançamentos • Clique
               </p>
             </CardContent>
           </Card>
@@ -533,6 +620,122 @@ export default function IndividualControl() {
                       <div className="text-right">
                         <p className="font-bold text-purple-600">
                           {formatCurrency(totalNf)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showPixModal} onOpenChange={setShowPixModal}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Procedimentos com Pagamento em PIX</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            {pixEntries.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">
+                Nenhum procedimento com pagamento em PIX encontrado
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <div className="bg-muted p-3 rounded-lg mb-3">
+                  <p className="text-sm">
+                    <strong>Total em PIX:</strong> {formatCurrency(pixTotal)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {pixEntries.length} {pixEntries.length === 1 ? 'lançamento' : 'lançamentos'}
+                  </p>
+                </div>
+                {pixEntries.map((entry) => {
+                  const pixPayments = entry.paymentDetails?.filter(pd => pd.method === 'pix') || [];
+                  const totalPix = pixPayments.reduce((sum, pd) => sum + pd.value, 0);
+                  
+                  return (
+                  <div
+                    key={entry.id}
+                    className="border rounded-lg p-4 space-y-2"
+                    data-testid={`entry-pix-${entry.id}`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <p className="font-medium">{entry.patientName}</p>
+                        <p className="text-sm text-muted-foreground">{entry.procedure}</p>
+                        {entry.invoiceNumber && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            NF: {entry.invoiceNumber}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-green-600">
+                          {formatCurrency(totalPix)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showMoneyModal} onOpenChange={setShowMoneyModal}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Procedimentos com Pagamento em Dinheiro</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            {moneyEntries.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">
+                Nenhum procedimento com pagamento em dinheiro encontrado
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <div className="bg-muted p-3 rounded-lg mb-3">
+                  <p className="text-sm">
+                    <strong>Total em Dinheiro:</strong> {formatCurrency(moneyTotal)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {moneyEntries.length} {moneyEntries.length === 1 ? 'lançamento' : 'lançamentos'}
+                  </p>
+                </div>
+                {moneyEntries.map((entry) => {
+                  const moneyPayments = entry.paymentDetails?.filter(pd => pd.method === 'dinheiro') || [];
+                  const totalMoney = moneyPayments.reduce((sum, pd) => sum + pd.value, 0);
+                  
+                  return (
+                  <div
+                    key={entry.id}
+                    className="border rounded-lg p-4 space-y-2"
+                    data-testid={`entry-money-${entry.id}`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <p className="font-medium">{entry.patientName}</p>
+                        <p className="text-sm text-muted-foreground">{entry.procedure}</p>
+                        {entry.invoiceNumber && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            NF: {entry.invoiceNumber}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-amber-600">
+                          {formatCurrency(totalMoney)}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
