@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Lock, CreditCard, DollarSign, TrendingDown, FileText } from "lucide-react";
+import { Lock, CreditCard, DollarSign, TrendingDown, FileText, Printer } from "lucide-react";
 import { MainNavigation } from "@/components/main-navigation";
 
 interface FinancialEntry {
@@ -517,7 +517,19 @@ export default function IndividualControl() {
       <Dialog open={showCardModal} onOpenChange={setShowCardModal}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Procedimentos com Pagamento em Cartão</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Procedimentos com Pagamento em Cartão</DialogTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.print()}
+                className="gap-2"
+                data-testid="button-print-card"
+              >
+                <Printer className="h-4 w-4" />
+                Imprimir
+              </Button>
+            </div>
           </DialogHeader>
           <div className="space-y-2">
             {cardEntries.length === 0 ? (
@@ -585,7 +597,19 @@ export default function IndividualControl() {
       <Dialog open={showNfModal} onOpenChange={setShowNfModal}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Procedimentos com Nota Fiscal</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Procedimentos com Nota Fiscal</DialogTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.print()}
+                className="gap-2"
+                data-testid="button-print-nf"
+              >
+                <Printer className="h-4 w-4" />
+                Imprimir
+              </Button>
+            </div>
           </DialogHeader>
           <div className="space-y-2">
             {nfEntries.length === 0 ? (
@@ -653,7 +677,19 @@ export default function IndividualControl() {
       <Dialog open={showPixModal} onOpenChange={setShowPixModal}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Procedimentos com Pagamento em PIX</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Procedimentos com Pagamento em PIX</DialogTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.print()}
+                className="gap-2"
+                data-testid="button-print-pix"
+              >
+                <Printer className="h-4 w-4" />
+                Imprimir
+              </Button>
+            </div>
           </DialogHeader>
           <div className="space-y-2">
             {pixEntries.length === 0 ? (
@@ -711,7 +747,19 @@ export default function IndividualControl() {
       <Dialog open={showMoneyModal} onOpenChange={setShowMoneyModal}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Procedimentos com Pagamento em Dinheiro</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Procedimentos com Pagamento em Dinheiro</DialogTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.print()}
+                className="gap-2"
+                data-testid="button-print-money"
+              >
+                <Printer className="h-4 w-4" />
+                Imprimir
+              </Button>
+            </div>
           </DialogHeader>
           <div className="space-y-2">
             {moneyEntries.length === 0 ? (
