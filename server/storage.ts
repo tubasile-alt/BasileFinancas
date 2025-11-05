@@ -297,16 +297,14 @@ export class MemStorage implements IStorage {
       if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
         const entryTotal = entry.paymentDetails.reduce((sum, payment) => {
           const baseValue = payment.value || 0;
-          const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
-          return sum + value;
+          return sum + baseValue;
         }, 0);
         
         // Calcular total de cartões (crédito e débito)
         const cardTotal = entry.paymentDetails.reduce((sum, payment) => {
           if (payment.method === 'cartao_credito' || payment.method === 'cartao_debito') {
             const baseValue = payment.value || 0;
-            const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
-            return sum + value;
+            return sum + baseValue;
           }
           return sum;
         }, 0);
@@ -1063,16 +1061,14 @@ export class DatabaseStorage implements IStorage {
       if (entry.paymentDetails && Array.isArray(entry.paymentDetails)) {
         const entryTotal = entry.paymentDetails.reduce((sum, payment) => {
           const baseValue = payment.value || 0;
-          const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
-          return sum + value;
+          return sum + baseValue;
         }, 0);
         
         // Calcular total de cartões (crédito e débito)
         const cardTotal = entry.paymentDetails.reduce((sum, payment) => {
           if (payment.method === 'cartao_credito' || payment.method === 'cartao_debito') {
             const baseValue = payment.value || 0;
-            const value = payment.method === 'cartao_credito' ? baseValue * 1.11 : baseValue;
-            return sum + value;
+            return sum + baseValue;
           }
           return sum;
         }, 0);
