@@ -366,6 +366,21 @@ export default function GastosBasilePage() {
     enabled: true
   });
 
+  // Carregar funcionários do backend para classificação automática
+  const { data: employees = [], isLoading: loadingEmployees } = useQuery({
+    queryKey: ['/api/employees'],
+    enabled: true
+  });
+
+  // Atualizar lista de funcionários quando dados forem carregados
+  const { useEffect } = require('react');
+  useEffect(() => {
+    if (employees.length > 0 && funcionarios.length === 0) {
+      const funcionariosList = employees.map((emp: any) => emp.name);
+      setFuncionarios(funcionariosList);
+    }
+  }, [employees, funcionarios.length]);
+
   // Helper function to transform backend data to frontend format
   const transformAnnualData = (backendData: AnnualSpendResponse) => {
     const monthNames = [
