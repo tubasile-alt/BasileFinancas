@@ -816,6 +816,31 @@ export class MemStorage implements IStorage {
     );
   }
 
+  // Employees CRUD
+  async createEmployee(insertEmployee: InsertEmployee): Promise<Employee> {
+    const id = randomUUID();
+    const employee: Employee = {
+      ...insertEmployee,
+      id,
+      createdAt: new Date(),
+    };
+    this.employees.set(id, employee);
+    return employee;
+  }
+
+  async getEmployees(): Promise<Employee[]> {
+    return Array.from(this.employees.values())
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async getEmployee(id: string): Promise<Employee | undefined> {
+    return this.employees.get(id);
+  }
+
+  async deleteEmployee(id: string): Promise<boolean> {
+    return this.employees.delete(id);
+  }
+
   async updateSavedMonthlyReport(id: string, updateData: Partial<InsertSavedMonthlyReport>): Promise<SavedMonthlyReport | undefined> {
     const existing = this.savedMonthlyReports.get(id);
     if (!existing) return undefined;
