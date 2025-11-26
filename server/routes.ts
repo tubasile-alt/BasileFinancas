@@ -1,11 +1,81 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertFinancialEntrySchema, insertBankTransactionPersistentSchema, insertManualExpenseSchema, insertLearnedClassificationSchema, annualSpendQuerySchema, insertSavedMonthlyReportSchema } from "@shared/schema";
+import { insertFinancialEntrySchema, insertBankTransactionPersistentSchema, insertManualExpenseSchema, insertLearnedClassificationSchema, annualSpendQuerySchema, insertSavedMonthlyReportSchema, insertEmployeeSchema } from "@shared/schema";
 import { z } from "zod";
 
+// Default employees to load on startup
+const DEFAULT_EMPLOYEES = [
+  "FRANCIELE DE QUEIROZ BUEN",
+  "DAIANE COSTA SANTOS",
+  "IDALINA FRANCISCA RIBEIRO",
+  "PALOMA CAMILA FERREIRA DA",
+  "GRASIELLE CRISTINA DOS SA",
+  "VANESSA DE MORAES POLVERI",
+  "LAURA DE AGUIAR CAMPANINI",
+  "CHRISTIANE MICHELLE DELLA",
+  "MARCELLA CAVINATTO SALIBE",
+  "GISELE CESCATE"
+];
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  
+  // Initialize default employees on startup
+  const existingEmployees = await storage.getEmployees();
+  if (existingEmployees.length === 0) {
+    for (const employeeName of DEFAULT_EMPLOYEES) {
+      await storage.createEmployee({ name: employeeName });
+    }
+  }
+
+  // EMPLOYEES ROUTES
+  app.post("/api/employees", async (req, res) => {
+    try {
+      const validatedData = insertEmployeeSchema.parse(req.body);
+      const employee = await storage.createEmployee(validatedData);
+      res.json(employee);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Validation error", errors: error.errors });
+      } else {
+        res.status(500).json({ message: "Internal server error" });
+      }
+    }
+  });
+
+  app.get("/api/employees", async (req, res) => {
+    try {
+      const employees = await storage.getEmployees();
+      res.json(employees);
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/employees/:id", async (req, res) => {
+    try {
+      const employee = await storage.getEmployee(req.params.id);
+      if (!employee) {
+        return res.status(404).json({ message: "Employee not found" });
+      }
+      res.json(employee);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/employees/:id", async (req, res) => {
+    try {
+      const success = await storage.deleteEmployee(req.params.id);
+      if (!success) {
+        return res.status(404).json({ message: "Employee not found" });
+      }
+      res.json({ message: "Employee deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Create financial entry
   app.post("/api/financial-entries", async (req, res) => {
     try {

@@ -1674,6 +1674,30 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount || 0) > 0;
   }
 
+  // Employees CRUD
+  async createEmployee(insertEmployee: InsertEmployee): Promise<Employee> {
+    const [employee] = await db
+      .insert(employees)
+      .values(insertEmployee)
+      .returning();
+    return employee;
+  }
+
+  async getEmployees(): Promise<Employee[]> {
+    const empList = await db.select().from(employees).orderBy(employees.name);
+    return empList;
+  }
+
+  async getEmployee(id: string): Promise<Employee | undefined> {
+    const [employee] = await db.select().from(employees).where(eq(employees.id, id));
+    return employee || undefined;
+  }
+
+  async deleteEmployee(id: string): Promise<boolean> {
+    const result = await db.delete(employees).where(eq(employees.id, id));
+    return (result.rowCount || 0) > 0;
+  }
+
   // Helper method for fuzzy matching (same as MemStorage)
   private calculateStringSimilarity(str1: string, str2: string): number {
     if (str1 === str2) return 1.0;
