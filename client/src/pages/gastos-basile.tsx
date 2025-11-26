@@ -10,7 +10,7 @@
  * - Exportação padronizada
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -373,7 +373,6 @@ export default function GastosBasilePage() {
   });
 
   // Atualizar lista de funcionários quando dados forem carregados
-  const { useEffect } = require('react');
   useEffect(() => {
     if (employees.length > 0 && funcionarios.length === 0) {
       const funcionariosList = employees.map((emp: any) => emp.name);
