@@ -25,6 +25,7 @@ export interface AdvancedClassificationResult {
   needsReview: boolean;
   reviewReason?: string;
   confidenceScore: number;
+  subcategoriaBoleto?: string;
 }
 
 /**
@@ -65,6 +66,44 @@ const DAY_HOSPITAL_SUPPLIERS = [
   "RHOSSE INST EQUIP",
   "JP IND FARMACEUTICA",
   "R P COM DE MAT HOSP"
+];
+
+/**
+ * Mapeamento de fornecedores de boletos com suas subcategorias
+ */
+interface BoletoSupplier {
+  nome: string;
+  subcategoria: "MADAH" | "FITA DE SILICONE" | "INFRAESTRUTURA" | "MARKETING";
+}
+
+const BOLETO_SUPPLIERS: BoletoSupplier[] = [
+  // MADAH
+  { nome: "PROLKORP", subcategoria: "MADAH" },
+  
+  // FITA DE SILICONE
+  { nome: "MEDICAL SALES DO BRASIL L", subcategoria: "FITA DE SILICONE" },
+  
+  // INFRAESTRUTURA
+  { nome: "T. H. A. SCOTT ARMAZENA", subcategoria: "INFRAESTRUTURA" },
+  { nome: "ROGER - COMERCIO DISTRIBUBU", subcategoria: "INFRAESTRUTURA" },
+  { nome: "JOSE LUIZ SEIXAS E SEIXAS", subcategoria: "INFRAESTRUTURA" },
+  { nome: "RELOAD COMERCIO E SERVICO", subcategoria: "INFRAESTRUTURA" },
+  { nome: "PATRICIA DA COSTA OLIVEIR", subcategoria: "INFRAESTRUTURA" },
+  { nome: "LC FELTRIN LAVAGENS E PO", subcategoria: "INFRAESTRUTURA" },
+  { nome: "CASA DAS CERAS LTDA", subcategoria: "INFRAESTRUTURA" },
+  { nome: "SW SERVICOS EM MEDICINA", subcategoria: "INFRAESTRUTURA" },
+  { nome: "OSCAR BARCELLOS F 3614764", subcategoria: "INFRAESTRUTURA" },
+  { nome: "SIND EMPREG ESTAB SAUDE D", subcategoria: "INFRAESTRUTURA" },
+  { nome: "WIN ADMINISTRADORA DE BEN", subcategoria: "INFRAESTRUTURA" },
+  { nome: "GESTAR-ASSESSORIA A E SIN", subcategoria: "INFRAESTRUTURA" },
+  { nome: "MEDICAR EMERGENCIAS MEDIC", subcategoria: "INFRAESTRUTURA" },
+  { nome: "SIND EMP TURISMO E HOSP D", subcategoria: "INFRAESTRUTURA" },
+  { nome: "BELGO ASSISTENCIA TECNICA", subcategoria: "INFRAESTRUTURA" },
+  { nome: "CESAR CONTABILIDADE LTDA", subcategoria: "INFRAESTRUTURA" },
+  { nome: "DANUBIA A. DE O. TOLOTTI", subcategoria: "INFRAESTRUTURA" },
+  
+  // MARKETING
+  { nome: "GALVANI E BACHIM COMUNICA", subcategoria: "MARKETING" }
 ];
 
 /**
@@ -572,6 +611,22 @@ export function checkDayHospitalSupplier(historico: string): boolean {
 }
 
 /**
+ * Detecta fornecedor de boleto e retorna sua subcategoria
+ */
+export function detectBoletoSupplier(historico: string): { found: boolean; subcategoria?: string } {
+  const historicoUpper = historico.toUpperCase();
+  
+  for (const supplier of BOLETO_SUPPLIERS) {
+    const supplierUpper = supplier.nome.toUpperCase();
+    if (historicoUpper.includes(supplierUpper)) {
+      return { found: true, subcategoria: supplier.subcategoria };
+    }
+  }
+  
+  return { found: false };
+}
+
+/**
  * Classifica uma transação bancária baseado no histórico
  * 
  * @param historico - O histórico da transação bancária
@@ -700,6 +755,7 @@ export function classifyTransactionAdvanced(
   const ehFuncionario = checkEmployeeList(historico, funcionarios);
   const ehFornecedor = checkSupplierList(historico, fornecedores);
   const ehDayHospital = checkDayHospitalSupplier(historico);
+  const boletoResult = detectBoletoSupplier(historico);
 
   // Inicia resultado base
   let categoria = "Outros";
@@ -707,6 +763,7 @@ export function classifyTransactionAdvanced(
   let classificacaoFinal = "Outros";
   let needsReview = false;
   let salarioConfirmado = false;
+  let subcategoriaBoleto: string | undefined;
 
   // LÓGICA DE PRIORIDADE
 
@@ -755,7 +812,15 @@ export function classifyTransactionAdvanced(
     classificacaoFinal = "Day Hospital (confirmado)";
   }
 
-  // 7. OUTRAS CLASSIFICAÇÕES: Usa regras tradicionais
+  // 7. SÉTIMA PRIORIDADE: Fornecedores de Boleto com subcategoria
+  else if (boletoResult.found) {
+    categoria = "Despesa – Boletos/Fornecedores";
+    ehOperacional = true;
+    subcategoriaBoleto = boletoResult.subcategoria;
+    classificacaoFinal = `Boleto – ${boletoResult.subcategoria} (confirmado)`;
+  }
+
+  // 8. OUTRAS CLASSIFICAÇÕES: Usa regras tradicionais
   else {
     const baseClassification = classifyTransaction(historico);
     categoria = baseClassification.categoria;
@@ -829,7 +894,8 @@ export function classifyTransactionAdvanced(
     classificacaoFinal,
     needsReview,
     reviewReason,
-    confidenceScore
+    confidenceScore,
+    subcategoriaBoleto
   };
 }
 
