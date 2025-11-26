@@ -367,18 +367,33 @@ export default function GastosBasilePage() {
   });
 
   // Carregar funcionários do backend para classificação automática
-  const { data: employees = [], isLoading: loadingEmployees } = useQuery({
+  const { data: employees = [], isLoading: loadingEmployees } = useQuery<Array<{id: string; name: string}>>({
     queryKey: ['/api/employees'],
+    enabled: true
+  });
+
+  // Carregar fornecedores do backend para classificação automática
+  const { data: suppliersData = [], isLoading: loadingSuppliers } = useQuery<Array<{id: string; name: string; categoria?: string}>>({
+    queryKey: ['/api/suppliers'],
     enabled: true
   });
 
   // Atualizar lista de funcionários quando dados forem carregados
   useEffect(() => {
     if (employees.length > 0 && funcionarios.length === 0) {
-      const funcionariosList = employees.map((emp: any) => emp.name);
+      const funcionariosList = employees.map((emp) => emp.name);
       setFuncionarios(funcionariosList);
     }
   }, [employees, funcionarios.length]);
+
+  // Atualizar lista de fornecedores quando dados forem carregados
+  useEffect(() => {
+    if (suppliersData.length > 0 && fornecedores.length === 0) {
+      const fornecedoresList = suppliersData.map((sup) => sup.name);
+      setFornecedores(fornecedoresList);
+      setDictionariesText(prev => ({ ...prev, fornecedores: fornecedoresList.join('\n') }));
+    }
+  }, [suppliersData, fornecedores.length]);
 
   // Helper function to transform backend data to frontend format
   const transformAnnualData = (backendData: AnnualSpendResponse) => {
