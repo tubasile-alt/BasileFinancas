@@ -151,22 +151,7 @@ export default function MonthlyDashboard() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card className="p-6">
-            <div className="flex items-center space-x-3">
-              <DollarSign className="h-8 w-8 text-green-600" />
-              <div>
-                <div className="text-sm text-muted-foreground uppercase tracking-wide">Receita Total do Mês</div>
-                <div className="text-3xl font-bold text-green-600 mt-1" data-testid="text-monthly-total">
-                  {isLoadingReport ? "..." : formatCurrency(monthlyReport?.total || 0)}
-                </div>
-              </div>
-            </div>
-            <div className="text-sm text-muted-foreground mt-3">
-              Média diária: {isLoadingReport ? "..." : formatCurrency(monthlyReport?.averagePerDay || 0)}
-            </div>
-          </Card>
-
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <Card className="p-6">
             <div className="flex items-center space-x-3">
               <Users className="h-8 w-8 text-blue-600" />
