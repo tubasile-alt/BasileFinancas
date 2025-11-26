@@ -302,6 +302,21 @@ export type InsertEnhancedOperationalSummary = z.infer<typeof insertEnhancedOper
 export type InsertAnnotatedTransaction = z.infer<typeof insertAnnotatedTransactionSchema>;
 export type InsertUXMessages = z.infer<typeof insertUXMessagesSchema>;
 
+// Employees Table
+export const employees = pgTable("employees", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const insertEmployeeSchema = createInsertSchema(employees).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;
+export type Employee = typeof employees.$inferSelect;
+
 // Learned Classifications Table
 export const learnedClassifications = pgTable("learned_classifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

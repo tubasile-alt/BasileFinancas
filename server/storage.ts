@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, type DailyClosure, type InsertDailyClosure, type BankTransactionPersistent, type InsertBankTransactionPersistent, type ManualExpense, type InsertManualExpense, type LearnedClassification, type InsertLearnedClassification, type AnnualSpendResponse, type AnnualSpendQuery, type SavedMonthlyReport, type InsertSavedMonthlyReport, users, financialEntries, dailyClosure, bankTransactions, manualExpenses, learnedClassifications, savedMonthlyReports } from "@shared/schema";
+import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, type DailyClosure, type InsertDailyClosure, type BankTransactionPersistent, type InsertBankTransactionPersistent, type ManualExpense, type InsertManualExpense, type LearnedClassification, type InsertLearnedClassification, type AnnualSpendResponse, type AnnualSpendQuery, type SavedMonthlyReport, type InsertSavedMonthlyReport, type Employee, type InsertEmployee, users, financialEntries, dailyClosure, bankTransactions, manualExpenses, learnedClassifications, savedMonthlyReports, employees } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, like, ilike, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -95,6 +95,12 @@ export interface IStorage {
   getSavedMonthlyReportByPeriod(mes: number, ano: number): Promise<SavedMonthlyReport | undefined>;
   updateSavedMonthlyReport(id: string, report: Partial<InsertSavedMonthlyReport>): Promise<SavedMonthlyReport | undefined>;
   deleteSavedMonthlyReport(id: string): Promise<boolean>;
+
+  // Employees CRUD
+  createEmployee(employee: InsertEmployee): Promise<Employee>;
+  getEmployees(): Promise<Employee[]>;
+  getEmployee(id: string): Promise<Employee | undefined>;
+  deleteEmployee(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -104,6 +110,7 @@ export class MemStorage implements IStorage {
   private manualExpenses: Map<string, ManualExpense>;
   private learnedClassifications: Map<string, LearnedClassification>;
   private savedMonthlyReports: Map<string, SavedMonthlyReport>;
+  private employees: Map<string, Employee>;
 
   constructor() {
     this.users = new Map();
@@ -112,6 +119,7 @@ export class MemStorage implements IStorage {
     this.manualExpenses = new Map();
     this.learnedClassifications = new Map();
     this.savedMonthlyReports = new Map();
+    this.employees = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
