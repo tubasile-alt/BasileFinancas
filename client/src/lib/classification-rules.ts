@@ -198,6 +198,30 @@ const CLASSIFICATION_RULES = [
     ],
     categoria: "Despesa – PIX Enviado", 
     ehOperacional: true
+  },
+
+  // 8. IOF Adicional – Não Operacional (Taxas/Financeiro)
+  {
+    keywords: [
+      "IOF ADICIONAL",
+      "IOF AUTOMATICO",
+      "IOF AUTOMÁTICO"
+    ],
+    categoria: "Não Operacional – Taxas/Financeiro (IOF)",
+    ehOperacional: false
+  },
+
+  // 9. Despesa Operacional – Transferência para Conta com Titular Diferente
+  {
+    keywords: [
+      "TRANSF VALOR P/ CONTA DIF TITULAR",
+      "TRANSF VALOR P/ CONTA DE DIF TITULAR",
+      "TRANSFERENCIA PARA CONTA DIF TITULAR",
+      "TRANSFERÊNCIA PARA CONTA DIF TITULAR",
+      "DIF TITULAR"
+    ],
+    categoria: "Despesa Operacional – Transferência Dif Titular",
+    ehOperacional: true
   }
 ];
 
