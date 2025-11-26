@@ -47,6 +47,27 @@ const IGNORE_KEYWORDS = [
 ];
 
 /**
+ * Fornecedores de Day Hospital (subcategorização)
+ */
+const DAY_HOSPITAL_SUPPLIERS = [
+  "ATIVA COMERCIAL HOSPITALA",
+  "MAZZEI COMERCIAL E REPRES",
+  "CRISTALIA PRODUTOS QUIMIC",
+  "BRASMEDICAL INDUSTRIA",
+  "FRANCAMED PRODUTOS HOSPIT",
+  "AIR LIQUIDE BRASIL",
+  "LAVANDERIA ASPH",
+  "KVO MEDICAL",
+  "SUPERMED COMERCIO",
+  "BIOLINE FIOS CIRURGICOS",
+  "BIONEXO",
+  "PRECISION COMERCIAL DISTR",
+  "RHOSSE INST EQUIP",
+  "JP IND FARMACEUTICA",
+  "R P COM DE MAT HOSP"
+];
+
+/**
  * Detecta se uma transação deve ser completamente ignorada (CONTAMAX, etc.)
  */
 export function shouldIgnoreTransaction(historico: string): boolean {
@@ -211,7 +232,17 @@ const CLASSIFICATION_RULES = [
     ehOperacional: false
   },
 
-  // 9. Despesa Operacional – Transferência para Conta com Titular Diferente
+  // 9. Despesa Operacional – Day Hospital (será detectado via checkDayHospitalSupplier)
+  {
+    keywords: [
+      "DAY HOSPITAL",
+      "DAYHOSPITAL"
+    ],
+    categoria: "Despesa Operacional – Day Hospital",
+    ehOperacional: true
+  },
+
+  // 10. Despesa Operacional – Transferência para Conta com Titular Diferente
   {
     keywords: [
       "TRANSF VALOR P/ CONTA DIF TITULAR",
@@ -529,6 +560,18 @@ export function checkSupplierList(historico: string, fornecedores?: string[]): b
 }
 
 /**
+ * Verifica se é um fornecedor de Day Hospital
+ */
+export function checkDayHospitalSupplier(historico: string): boolean {
+  const historicoUpper = historico.toUpperCase();
+  
+  return DAY_HOSPITAL_SUPPLIERS.some(supplier => {
+    const supplierUpper = supplier.toUpperCase();
+    return historicoUpper.includes(supplierUpper);
+  });
+}
+
+/**
  * Classifica uma transação bancária baseado no histórico
  * 
  * @param historico - O histórico da transação bancária
@@ -656,6 +699,7 @@ export function classifyTransactionAdvanced(
   // Verifica dicionários
   const ehFuncionario = checkEmployeeList(historico, funcionarios);
   const ehFornecedor = checkSupplierList(historico, fornecedores);
+  const ehDayHospital = checkDayHospitalSupplier(historico);
 
   // Inicia resultado base
   let categoria = "Outros";
@@ -704,7 +748,14 @@ export function classifyTransactionAdvanced(
     needsReview = true; // Sinaliza que precisa revisão manual
   }
   
-  // 6. OUTRAS CLASSIFICAÇÕES: Usa regras tradicionais
+  // 6. SEXTA PRIORIDADE: Day Hospital
+  else if (ehDayHospital) {
+    categoria = "Despesa Operacional – Day Hospital";
+    ehOperacional = true;
+    classificacaoFinal = "Day Hospital (confirmado)";
+  }
+
+  // 7. OUTRAS CLASSIFICAÇÕES: Usa regras tradicionais
   else {
     const baseClassification = classifyTransaction(historico);
     categoria = baseClassification.categoria;
@@ -755,6 +806,8 @@ export function classifyTransactionAdvanced(
     confidenceScore = 0.92; // Alta confiança - whitelist confirmada
   } else if (ehSalarioHeuristico) {
     confidenceScore = 0.75; // Confiança média - baseado em heurística
+  } else if (ehDayHospital) {
+    confidenceScore = 0.90; // Boa confiança - fornecedor de day hospital confirmado
   } else if (ehFornecedor) {
     confidenceScore = 0.88; // Boa confiança - whitelist fornecedores
   } else if (categoria === "Receita – PIX/Outros Recebimentos") {
