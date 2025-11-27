@@ -49,7 +49,8 @@ import {
   History,
   Edit,
   Trash2,
-  Filter
+  Filter,
+  Users
 } from 'lucide-react';
 import { MainNavigation } from '@/components/main-navigation';
 
