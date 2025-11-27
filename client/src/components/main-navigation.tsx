@@ -1,4 +1,4 @@
-import { Hospital, Home, Calendar, BarChart3, UserCog } from "lucide-react";
+import { Hospital, Home, Calendar, BarChart3, UserCog, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,12 @@ const navigationItems: NavigationItem[] = [
     label: "Gastos Clínica Basile",
     icon: BarChart3,
     description: "Análise de extratos bancários"
+  },
+  {
+    href: "/insights",
+    label: "Dashboard Insights",
+    icon: TrendingUp,
+    description: "Insights de despesas"
   },
   {
     href: "/controle-individual",

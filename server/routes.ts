@@ -634,7 +634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const categoryData = report.categoryReportData as any[];
       
       // Build resultado from saved data
-      const resultado = {
+      const resultado: any = {
         kpis: {
           kpi_saidas_op_valor: Math.abs(parseFloat(report.enhancedSummaryData.saidasReais.toString())),
           kpi_qtd_lanc: report.totalTransactions,
