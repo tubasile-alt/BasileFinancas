@@ -577,35 +577,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Insights Dashboard - Read from CSV files
+  // Insights Dashboard - Get from saved reports in database
   app.get("/api/insights/meses", async (req, res) => {
     try {
-      const fs = await import("fs");
-      const path = await import("path");
-      const workspace = process.cwd();
-      const meses: Set<string> = new Set();
-      
-      // Check outputs and saida_* directories
-      const dirs = fs.readdirSync(workspace).filter((d: string) => 
-        d.startsWith("outputs") || d.startsWith("saida_")
-      );
-      
-      dirs.forEach((dir: string) => {
-        try {
-          const fullPath = path.join(workspace, dir);
-          if (fs.statSync(fullPath).isDirectory()) {
-            const files = fs.readdirSync(fullPath);
-            files.forEach((f: string) => {
-              const match = f.match(/(\d{4})-(\d{2})/);
-              if (match) {
-                meses.add(`${match[1]}-${match[2]}`);
-              }
-            });
-          }
-        } catch {}
-      });
-      
-      res.json(Array.from(meses).sort().reverse());
+      const reports = await storage.getSavedMonthlyReports();
+      const meses = reports
+        .map(r => `${r.ano}-${String(r.mes).padStart(2, '0')}`)
+        .sort()
+        .reverse();
+      res.json([...new Set(meses)]);
     } catch (error) {
       res.json([]);
     }
@@ -613,160 +593,138 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/insights", async (req, res) => {
     try {
-      const fs = await import("fs");
-      const path = await import("path");
-      const Papa = await import("papaparse");
-      
-      const mes = (req.query.mes as string) || "2025-10";
-      const workspace = process.cwd();
-      
-      const resultado = {
-        kpis: {
-          kpi_saidas_op_valor: 0,
-          kpi_qtd_lanc: 0,
-          kpi_variacao_mom: 0,
-          kpi_ticket_medio: 0,
-          kpi_outros_pct: 0
-        },
-        chart_categorias: [] as any[],
-        chart_metodos: [] as any[],
-        chart_semana: [] as any[],
-        chart_mom_waterfall: [] as any[],
-        top_fornecedores: [] as any[],
-        impostos: [] as any[],
-        boletos: [] as any[],
-        pix_out: [] as any[],
-        outros: [] as any[],
-        alertas: [] as any[]
-      };
-
-      // Find and read CSV files
-      const dirs = fs.readdirSync(workspace).filter((d: string) => 
-        (d.startsWith("outputs") || d.startsWith("saida_")) && 
-        fs.statSync(path.join(workspace, d)).isDirectory()
-      );
-
-      let allData: any[] = [];
-      dirs.forEach((dir: string) => {
-        const fullPath = path.join(workspace, dir);
-        try {
-          const files = fs.readdirSync(fullPath);
-          files.forEach((f: string) => {
-            if (f.includes(mes.replace("-", "-")) && f.endsWith(".csv")) {
-              const filePath = path.join(fullPath, f);
-              const content = fs.readFileSync(filePath, "utf-8");
-              const parsed = Papa.parse(content, { header: true });
-              allData.push(...(parsed.data || []));
-            }
-          });
-        } catch {}
-      });
-
-      if (allData.length === 0) {
-        return res.json(resultado);
+      const mesStr = (req.query.mes as string) || "";
+      if (!mesStr) {
+        return res.json({
+          kpis: { kpi_saidas_op_valor: 0, kpi_qtd_lanc: 0, kpi_variacao_mom: 0, kpi_ticket_medio: 0, kpi_outros_pct: 0 },
+          chart_categorias: [],
+          chart_metodos: [],
+          chart_semana: [],
+          chart_mom_waterfall: [],
+          top_fornecedores: [],
+          impostos: [],
+          boletos: [],
+          pix_out: [],
+          outros: [],
+          alertas: []
+        });
       }
 
-      // Process data
-      const categoriaMap: { [key: string]: number } = {};
-      const fornecedorMap: { [key: string]: any } = {};
-      const metodosMap: { [key: string]: number } = {};
-      let totalSaidas = 0;
-      let qtdLanc = 0;
+      const [ano, mes] = mesStr.split("-");
+      const report = await storage.getSavedMonthlyReportByPeriod(parseInt(mes), parseInt(ano));
+      
+      if (!report) {
+        return res.json({
+          kpis: { kpi_saidas_op_valor: 0, kpi_qtd_lanc: 0, kpi_variacao_mom: 0, kpi_ticket_medio: 0, kpi_outros_pct: 0 },
+          chart_categorias: [],
+          chart_metodos: [],
+          chart_semana: [],
+          chart_mom_waterfall: [],
+          top_fornecedores: [],
+          impostos: [],
+          boletos: [],
+          pix_out: [],
+          outros: [],
+          alertas: []
+        });
+      }
 
-      allData.forEach((row: any) => {
-        if (!row.Valor) return;
-        
-        const valor = Math.abs(parseFloat(row.Valor) || 0);
-        if (valor === 0) return;
-
-        const categoria = row.Categoria || row.categoria || "Outros";
-        const fornecedor = row.Fornecido || row.Favorecido || row.favorecido || "N/A";
-        const metodo = row.MetodoPagamento || row.metodo || "OUTROS";
-        const data = row.Data || row.data || "";
-
-        qtdLanc++;
-        categoriaMap[categoria] = (categoriaMap[categoria] || 0) + valor;
-        metodosMap[metodo] = (metodosMap[metodo] || 0) + valor;
-        totalSaidas += valor;
-
-        if (!fornecedorMap[fornecedor]) {
-          fornecedorMap[fornecedor] = { valor: 0, lancamentos: 0, categoria };
-        }
-        fornecedorMap[fornecedor].valor += valor;
-        fornecedorMap[fornecedor].lancamentos++;
-
-        // Impostos
-        if (categoria.toLowerCase().includes("imposto")) {
-          resultado.impostos.push({
-            data,
-            descricao: row.Historico || row.historico || "",
-            valor,
+      const transactions = report.transactionsData as any[];
+      const categoryData = report.categoryReportData as any[];
+      
+      // Build resultado from saved data
+      const resultado = {
+        kpis: {
+          kpi_saidas_op_valor: Math.abs(parseFloat(report.enhancedSummaryData.saidasReais.toString())),
+          kpi_qtd_lanc: report.totalTransactions,
+          kpi_variacao_mom: 0,
+          kpi_ticket_medio: report.totalTransactions > 0 
+            ? Math.abs(parseFloat(report.totalAmount.toString())) / report.totalTransactions 
+            : 0,
+          kpi_outros_pct: categoryData
+            .filter(c => c.categoria.toLowerCase().includes("outro"))
+            .reduce((sum, c) => sum + (c.valor || 0), 0) / Math.abs(parseFloat(report.totalAmount.toString())) * 100
+        },
+        chart_categorias: categoryData
+          .filter(c => Math.abs(c.valor) > 0)
+          .map(c => ({
+            categoria: c.categoria,
+            valor: Math.abs(c.valor),
+            percentual: Math.abs(c.valor) / Math.abs(parseFloat(report.totalAmount.toString())) * 100
+          }))
+          .sort((a, b) => b.valor - a.valor)
+          .slice(0, 10),
+        chart_metodos: [
+          { metodo: "PIX", valor: 0, percentual: 0, ticket_medio: 0 },
+          { metodo: "BOLETO", valor: 0, percentual: 0, ticket_medio: 0 }
+        ],
+        chart_semana: (report.weeklyCashFlowData as any[])
+          .map(w => ({
+            semana: `Sem ${w.semana}`,
+            valor: Math.abs(w.valor),
+            media: 0,
+            desvio: 0
+          })),
+        chart_mom_waterfall: categoryData
+          .filter(c => Math.abs(c.valor) > 0)
+          .slice(0, 8)
+          .map(c => ({
+            categoria: c.categoria,
+            valor: Math.abs(c.valor),
+            direcao: c.valor > 0 ? "up" as const : "down" as const
+          })),
+        top_fornecedores: (report.topDespesasData as any[])
+          .slice(0, 10)
+          .map(t => ({
+            fornecedor: t.historico,
+            valor: Math.abs(t.valor),
+            categoria: "N/A",
+            percentual: Math.abs(t.valor) / Math.abs(parseFloat(report.totalAmount.toString())) * 100,
+            lancamentos: 1
+          })),
+        impostos: transactions
+          .filter((t: any) => t.ehImposto || t.categoria?.toLowerCase().includes("imposto"))
+          .slice(0, 10)
+          .map((t: any) => ({
+            data: t.data || t.dateISO,
+            descricao: t.historico,
+            valor: Math.abs(t.valor),
             nivel: "Federal"
-          });
-        }
+          })),
+        boletos: transactions
+          .filter((t: any) => t.MetodoPagamento === "BOLETO" || t.metodo === "BOLETO")
+          .slice(0, 10)
+          .map((t: any) => ({
+            data: t.data || t.dateISO,
+            favorecido: t.Favorecido || t.favorecido || "N/A",
+            valor: Math.abs(t.valor),
+            categoria: t.categoria || "N/A"
+          })),
+        pix_out: transactions
+          .filter((t: any) => t.MetodoPagamento === "PIX" || t.metodo === "PIX")
+          .slice(0, 10)
+          .map((t: any) => ({
+            contraparte: t.Contraparte || t.contraparte || "N/A",
+            valor: Math.abs(t.valor),
+            lancamentos: 1
+          })),
+        outros: transactions
+          .filter((t: any) => !t.categoria || t.categoria === "Outros" || t.categoria === "Conferir")
+          .slice(0, 10)
+          .map((t: any) => ({
+            data: t.data || t.dateISO,
+            historico: t.historico,
+            valor: Math.abs(t.valor),
+            favorecido: t.Favorecido || t.favorecido || "N/A"
+          })),
+        alertas: []
+      };
 
-        // Boletos
-        if (metodo.includes("BOLETO")) {
-          resultado.boletos.push({ data, favorecido: fornecedor, valor, categoria });
-        }
-
-        // PIX
-        if (metodo.includes("PIX")) {
-          resultado.pix_out.push({ contraparte: fornecedor, valor, lancamentos: 1 });
-        }
-
-        // Outros
-        if (categoria === "Outros" || categoria === "Conferir") {
-          resultado.outros.push({
-            data,
-            historico: row.Historico || row.historico || "",
-            valor,
-            favorecido: fornecedor
-          });
-        }
-      });
-
-      // Calcular KPIs
-      resultado.kpis.kpi_saidas_op_valor = totalSaidas;
-      resultado.kpis.kpi_qtd_lanc = qtdLanc;
-      resultado.kpis.kpi_ticket_medio = qtdLanc > 0 ? totalSaidas / qtdLanc : 0;
-      resultado.kpis.kpi_outros_pct = 
-        (categoriaMap["Outros"] || 0) / totalSaidas * 100;
-
-      // Gráficos
-      resultado.chart_categorias = Object.entries(categoriaMap)
-        .map(([cat, val]) => ({
-          categoria: cat,
-          valor: val as number,
-          percentual: ((val as number) / totalSaidas * 100)
-        }))
-        .sort((a, b) => b.valor - a.valor)
-        .slice(0, 10);
-
-      resultado.chart_metodos = Object.entries(metodosMap)
-        .map(([met, val]) => ({
-          metodo: met,
-          valor: val,
-          percentual: (val / totalSaidas * 100),
-          ticket_medio: 0
-        }));
-
-      resultado.top_fornecedores = Object.entries(fornecedorMap)
-        .map(([f, data]: any) => ({
-          fornecedor: f,
-          valor: data.valor,
-          categoria: data.categoria,
-          percentual: (data.valor / totalSaidas * 100),
-          lancamentos: data.lancamentos
-        }))
-        .sort((a, b) => b.valor - a.valor)
-        .slice(0, 10);
-
-      // Alertas
+      // Add alerts
       if (resultado.kpis.kpi_outros_pct > 5) {
         resultado.alertas.push({
           tipo: "Mapeamento de Categorias",
-          mensagem: `${resultado.kpis.kpi_outros_pct.toFixed(1)}% das despesas estão em "Outros/Conferir" (meta: < 5%)`,
+          mensagem: `${resultado.kpis.kpi_outros_pct.toFixed(1)}% das despesas em "Outros/Conferir" (meta: < 5%)`,
           severidade: "warning"
         });
       }
@@ -774,7 +732,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(resultado);
     } catch (error) {
       console.error("Error in insights endpoint:", error);
-      res.status(500).json({ message: "Internal server error" });
+      res.json({
+        kpis: { kpi_saidas_op_valor: 0, kpi_qtd_lanc: 0, kpi_variacao_mom: 0, kpi_ticket_medio: 0, kpi_outros_pct: 0 },
+        chart_categorias: [],
+        chart_metodos: [],
+        chart_semana: [],
+        chart_mom_waterfall: [],
+        top_fornecedores: [],
+        impostos: [],
+        boletos: [],
+        pix_out: [],
+        outros: [],
+        alertas: []
+      });
     }
   });
 
