@@ -581,11 +581,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/insights/meses", async (req, res) => {
     try {
       const reports = await storage.getSavedMonthlyReports();
-      const meses = reports
-        .map(r => `${r.ano}-${String(r.mes).padStart(2, '0')}`)
-        .sort()
-        .reverse();
-      res.json([...new Set(meses)]);
+      const mesSet = new Set<string>();
+      reports.forEach(r => {
+        mesSet.add(`${r.ano}-${String(r.mes).padStart(2, '0')}`);
+      });
+      const meses = Array.from(mesSet).sort().reverse();
+      res.json(meses);
     } catch (error) {
       res.json([]);
     }
@@ -725,7 +726,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resultado.alertas.push({
           tipo: "Mapeamento de Categorias",
           mensagem: `${resultado.kpis.kpi_outros_pct.toFixed(1)}% das despesas em "Outros/Conferir" (meta: < 5%)`,
-          severidade: "warning"
+          severidade: "warning" as const
         });
       }
 
