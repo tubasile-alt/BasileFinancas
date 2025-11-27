@@ -193,6 +193,17 @@ const annualFiltersSchema = z.object({
 
 type AnnualFiltersData = z.infer<typeof annualFiltersSchema>;
 
+// Interface para dados anuais com despesas por categoria
+interface AnnualExpenseData {
+  mes: number;
+  label: string;
+  receita: number;
+  gasto: number;
+  impostos: number;
+  folha: number;
+  outros: number;
+}
+
 // Interface para ações de revisão
 interface ReviewAction {
   type: 'receita' | 'salario' | 'fornecedor' | 'revisado';
@@ -474,6 +485,17 @@ export default function GastosBasilePage() {
 
   // Transform the data for frontend use
   const annualSpendData = rawAnnualData ? transformAnnualData(rawAnnualData) : null;
+
+  // Query para dados anuais detalhados por categoria
+  const { data: annualExpenses = [] } = useQuery<AnnualExpenseData[]>({
+    queryKey: ['/api/annual-expenses-summary', annualFilters.year],
+    queryFn: async () => {
+      const res = await fetch(`/api/annual-expenses-summary?year=${annualFilters.year}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!annualFilters.year,
+  });
 
   // MUTATIONS: Operações CRUD
   const saveExtractMutation = useMutation({
@@ -2940,6 +2962,82 @@ export default function GastosBasilePage() {
                     </CardContent>
                   </Card>
                 </div>
+
+                {/* 3 Gráficos Adicionais */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Gráfico de Impostos por Mês */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <DollarSign className="h-5 w-5" />
+                        Gastos em Impostos por Mês
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={annualExpenses}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="label" />
+                          <YAxis />
+                          <Tooltip formatter={(value: number) => formatCurrencyBR(value)} />
+                          <Legend />
+                          <Line 
+                            type="monotone" 
+                            dataKey="impostos" 
+                            stroke="#f59e0b" 
+                            strokeWidth={2}
+                            name="Impostos"
+                            dot={{ r: 4 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  {/* Gráfico de Folha de Pagamento por Mês */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Users className="h-5 w-5" />
+                        Folha de Pagamento por Mês
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={annualExpenses}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="label" />
+                          <YAxis />
+                          <Tooltip formatter={(value: number) => formatCurrencyBR(value)} />
+                          <Legend />
+                          <Bar dataKey="folha" fill="#8b5cf6" name="Folha de Pagamento" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Outros Gastos por Mês */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      Outros Gastos por Mês
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={annualExpenses}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="label" />
+                        <YAxis />
+                        <Tooltip formatter={(value: number) => formatCurrencyBR(value)} />
+                        <Legend />
+                        <Bar dataKey="outros" fill="#06b6d4" name="Outros Gastos" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
 
                 {/* Tabela de breakdown por categoria */}
                 <Card>
