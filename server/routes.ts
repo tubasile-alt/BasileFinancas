@@ -685,8 +685,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const report = await storage.getSavedMonthlyReportByPeriod(parseInt(mes), parseInt(ano));
       
       if (!report) {
-        // Return demo data if no report found
-        return res.json(generateDemoData(mesStr));
+        return res.json({
+          kpis: { kpi_saidas_op_valor: 0, kpi_qtd_lanc: 0, kpi_variacao_mom: 0, kpi_ticket_medio: 0, kpi_outros_pct: 0 },
+          chart_categorias: [],
+          chart_metodos: [],
+          chart_semana: [],
+          chart_mom_waterfall: [],
+          top_fornecedores: [],
+          impostos: [],
+          boletos: [],
+          pix_out: [],
+          outros: [],
+          alertas: []
+        });
       }
 
       const transactions = report.transactionsData as any[];

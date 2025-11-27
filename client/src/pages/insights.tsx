@@ -48,8 +48,6 @@ interface DashboardData {
 
 const CORES = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#14b8a6"];
 
-const DEMO_MESES = ["2025-11", "2025-10", "2025-09"];
-
 export default function InsightsPage() {
   const [mesAlvo, setMesAlvo] = useState("");
 
@@ -58,7 +56,7 @@ export default function InsightsPage() {
     queryFn: async () => {
       const res = await fetch("/api/insights/meses");
       const data = await res.json() as string[];
-      return data.length > 0 ? data : DEMO_MESES;
+      return data || [];
     },
   });
 
@@ -126,19 +124,35 @@ export default function InsightsPage() {
                   <SelectValue placeholder="Escolha um mês para visualizar..." />
                 </SelectTrigger>
                 <SelectContent className="max-h-48">
-                  {(mesesDisp || DEMO_MESES).map((mes) => (
-                    <SelectItem key={mes} value={mes}>
-                      {format(parse(mes, "yyyy-MM", new Date()), "MMMM 'de' yyyy", { locale: pt })}
+                  {mesesDisp.length > 0 ? (
+                    mesesDisp.map((mes) => (
+                      <SelectItem key={mes} value={mes}>
+                        {format(parse(mes, "yyyy-MM", new Date()), "MMMM 'de' yyyy", { locale: pt })}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="vazio" disabled>
+                      Nenhum relatório salvo na aba Gastos
                     </SelectItem>
-                  ))}
+                  )}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500 mt-2">Dados de exemplo disponíveis</p>
+              {mesesDisp.length === 0 && (
+                <p className="text-xs text-amber-600 mt-2">⚠️ Processe e salve um relatório na aba "Gastos Clínica Basile" primeiro</p>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        {!mesAlvo ? (
+        {mesesDisp.length === 0 ? (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Nenhum relatório salvo</AlertTitle>
+            <AlertDescription>
+              Acesse a aba <strong>"Gastos Clínica Basile"</strong>, processe um arquivo e clique em "Salvar Relatório" para visualizar os dados aqui.
+            </AlertDescription>
+          </Alert>
+        ) : !mesAlvo ? (
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Selecione um período</AlertTitle>
