@@ -577,6 +577,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Demo data generator
+  function generateDemoData(mes: string) {
+    const data = {
+      kpis: {
+        kpi_saidas_op_valor: 45320 + Math.random() * 10000,
+        kpi_qtd_lanc: 47 + Math.floor(Math.random() * 20),
+        kpi_variacao_mom: -0.08 + Math.random() * 0.2,
+        kpi_ticket_medio: 965 + Math.random() * 300,
+        kpi_outros_pct: 3.2 + Math.random() * 4
+      },
+      chart_categorias: [
+        { categoria: "Fornecedores", valor: 15000 + Math.random() * 5000, percentual: 0 },
+        { categoria: "Salários", valor: 12000, percentual: 0 },
+        { categoria: "Aluguél", valor: 8000, percentual: 0 },
+        { categoria: "Utilidades", valor: 4500 + Math.random() * 2000, percentual: 0 },
+        { categoria: "Impostos", valor: 3200 + Math.random() * 1000, percentual: 0 },
+        { categoria: "Outros", valor: 2120 + Math.random() * 1000, percentual: 0 }
+      ],
+      chart_metodos: [
+        { metodo: "PIX", valor: 22000, percentual: 50, ticket_medio: 1100 },
+        { metodo: "BOLETO", valor: 18000, percentual: 40, ticket_medio: 1200 },
+        { metodo: "Transferência", valor: 5320, percentual: 10, ticket_medio: 890 }
+      ],
+      chart_semana: [
+        { semana: "Sem 1", valor: 8500, media: 8000, desvio: 1200 },
+        { semana: "Sem 2", valor: 11200, media: 8000, desvio: 1200 },
+        { semana: "Sem 3", valor: 13000, media: 8000, desvio: 1200 },
+        { semana: "Sem 4", valor: 12620, media: 8000, desvio: 1200 }
+      ],
+      chart_mom_waterfall: [
+        { categoria: "Fornecedores", valor: 2000, direcao: "up" as const },
+        { categoria: "Salários", valor: 0, direcao: "up" as const },
+        { categoria: "Aluguél", valor: -500, direcao: "down" as const },
+        { categoria: "Utilidades", valor: 1200, direcao: "up" as const }
+      ],
+      top_fornecedores: [
+        { fornecedor: "Fornecedor A", categoria: "Materiais", valor: 5000, percentual: 11, lancamentos: 4 },
+        { fornecedor: "Fornecedor B", categoria: "Serviços", valor: 4200, percentual: 9, lancamentos: 3 },
+        { fornecedor: "Fornecedor C", categoria: "Insumos", valor: 3500, percentual: 8, lancamentos: 5 },
+        { fornecedor: "Fornecedor D", categoria: "Materiais", valor: 2800, percentual: 6, lancamentos: 2 }
+      ],
+      impostos: [
+        { data: "2025-10-05", descricao: "INSS", valor: 1200, nivel: "Federal" },
+        { data: "2025-10-10", descricao: "ICMS", valor: 800, nivel: "Estadual" },
+        { data: "2025-10-15", descricao: "IR", valor: 600, nivel: "Federal" }
+      ],
+      boletos: [
+        { data: "2025-10-03", favorecido: "Aluguel Comercial", valor: 8000, categoria: "Aluguél" },
+        { data: "2025-10-05", favorecido: "Fornecedor ABC", valor: 3200, categoria: "Fornecedores" },
+        { data: "2025-10-10", favorecido: "Energia Elétrica", valor: 2100, categoria: "Utilidades" }
+      ],
+      pix_out: [
+        { contraparte: "Funcionário 1", valor: 3000, lancamentos: 2 },
+        { contraparte: "Fornecedor Rápido", valor: 2200, lancamentos: 1 },
+        { contraparte: "Aplicação", valor: 1500, lancamentos: 1 }
+      ],
+      outros: [
+        { data: "2025-10-12", historico: "Transferência TED", valor: 1200, favorecido: "Conta X" },
+        { data: "2025-10-18", historico: "Saque", valor: 500, favorecido: "Caixa" }
+      ],
+      alertas: []
+    };
+    
+    // Calcular percentuais
+    const total = data.chart_categorias.reduce((a, c) => a + c.valor, 0);
+    data.chart_categorias.forEach(c => c.percentual = (c.valor / total) * 100);
+    
+    return data;
+  }
+
   // Insights Dashboard - Get from saved reports in database
   app.get("/api/insights/meses", async (req, res) => {
     try {
@@ -615,19 +685,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const report = await storage.getSavedMonthlyReportByPeriod(parseInt(mes), parseInt(ano));
       
       if (!report) {
-        return res.json({
-          kpis: { kpi_saidas_op_valor: 0, kpi_qtd_lanc: 0, kpi_variacao_mom: 0, kpi_ticket_medio: 0, kpi_outros_pct: 0 },
-          chart_categorias: [],
-          chart_metodos: [],
-          chart_semana: [],
-          chart_mom_waterfall: [],
-          top_fornecedores: [],
-          impostos: [],
-          boletos: [],
-          pix_out: [],
-          outros: [],
-          alertas: []
-        });
+        // Return demo data if no report found
+        return res.json(generateDemoData(mesStr));
       }
 
       const transactions = report.transactionsData as any[];

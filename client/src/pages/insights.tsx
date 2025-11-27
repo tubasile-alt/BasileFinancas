@@ -48,14 +48,17 @@ interface DashboardData {
 
 const CORES = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#14b8a6"];
 
+const DEMO_MESES = ["2025-11", "2025-10", "2025-09"];
+
 export default function InsightsPage() {
   const [mesAlvo, setMesAlvo] = useState("");
 
-  const { data: mesesDisp } = useQuery({
+  const { data: mesesDisp = [] } = useQuery({
     queryKey: ["/api/insights/meses"],
     queryFn: async () => {
       const res = await fetch("/api/insights/meses");
-      return (await res.json()) as string[];
+      const data = await res.json() as string[];
+      return data.length > 0 ? data : DEMO_MESES;
     },
   });
 
@@ -114,22 +117,23 @@ export default function InsightsPage() {
             <CardTitle>Período</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="w-full sm:w-48">
+            <div className="w-full sm:w-72">
               <Label htmlFor="mes" className="text-sm font-medium mb-2 block">
                 Selecione o Mês
               </Label>
               <Select value={mesAlvo} onValueChange={setMesAlvo}>
                 <SelectTrigger id="mes">
-                  <SelectValue placeholder="Escolha um mês..." />
+                  <SelectValue placeholder="Escolha um mês para visualizar..." />
                 </SelectTrigger>
-                <SelectContent>
-                  {mesesDisp?.map((mes) => (
+                <SelectContent className="max-h-48">
+                  {(mesesDisp || DEMO_MESES).map((mes) => (
                     <SelectItem key={mes} value={mes}>
-                      {format(parse(mes, "yyyy-MM", new Date()), "MMMM yyyy", { locale: pt })}
+                      {format(parse(mes, "yyyy-MM", new Date()), "MMMM 'de' yyyy", { locale: pt })}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-gray-500 mt-2">Dados de exemplo disponíveis</p>
             </div>
           </CardContent>
         </Card>
