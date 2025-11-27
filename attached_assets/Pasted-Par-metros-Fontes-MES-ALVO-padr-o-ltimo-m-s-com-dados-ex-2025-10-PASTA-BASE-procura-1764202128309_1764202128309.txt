@@ -1,0 +1,105 @@
+Parâmetros & Fontes
+	•	MES_ALVO (padrão: último mês com dados; ex: 2025-10).
+	•	PASTA_BASE = procurar em ordem:
+	1.	outputs/{MES_ALVO}/
+	2.	saida_{nome_mes}_{ano}/ (ex: saida_outubro_2025/)
+	3.	saida_extrato_analise_{AAAA-MM-DD}/ (fallback se for o formato antigo)
+	•	Arquivos esperados (qualquer um ausente = ocultar o widget e exibir aviso discreto):
+	•	despesas_operacionais_{AAAA-MM}.csv (opcional; se não existir, usar extrato_classificado_{AAAA-MM}.csv filtrando por OperacionalFlag=true e Valor<0)
+	•	despesas_por_categoria_{AAAA-MM}.csv (opcional; senão, agregue do arquivo acima por Categoria)
+	•	top_fornecedores_{AAAA-MM}.csv (opcional; senão, agregue)
+	•	impostos_{AAAA-MM}.csv
+	•	boletos_{AAAA-MM}.csv (com Favorecido)
+	•	pix_enviado_{AAAA-MM}.csv (com Contraparte)
+	•	outros_conferir_{AAAA-MM}.csv
+	•	Fallback único: extrato_classificado_{AAAA-MM}.csv contendo as colunas:
+	•	Data, Valor, Historico, Favorecido?, Contraparte?, MetodoPagamento, Categoria, EhImposto, EhMovtoFinanceiro, EhDifTitular, OperacionalFlag.
+
+Timezone: America/Sao_Paulo.
+Datas: usar dd/mm para cards/listas e aaaa-mm-dd internamente.
+
+2) Filtros Globais
+	•	Mês/Ano (dropdown de meses disponíveis)
+	•	Categoria (multi-seleção)
+	•	Fornecedor (busca)
+	•	Método ∈ {BOLETO, PIX, CARTAO/AUTODEB, OUTROS}
+	•	Escopo (toggle): Operacional (default) | Total
+
+Filtros afetam todo o painel; KPIs e gráficos recalculam ao vivo.
+
+3) KPIs (cards no topo)
+
+IDs e fórmulas (sempre escopo atual + filtros):
+	•	kpi_saidas_op_valor: Σ Valor (negativos) → exibir abs com prefixo “R$”.
+	•	kpi_qtd_lanc: contagem de lançamentos.
+	•	kpi_variacao_mom: (ΣValor MÊS_ALVO – ΣValor MÊS_ANT) / ΣValor MÊS_ANT.
+	•	kpi_ticket_medio: (ΣValor / nº lançamentos) → em abs.
+	•	kpi_outros_pct: % do total em Categoria = “Outros/Conferir” (meta < 5%).
+
+Observação: quando Escopo=Operacional, excluir linhas com EhMovtoFinanceiro=true e IOF ADICIONAL - AUTOMATICO.
+
+4) Gráficos & Tabelas
+	1.	Barras por Categoria (chart_categorias_barras)
+	•	Eixo X: categorias; Eixo Y: ΣValor (abs); label com % do total.
+	•	Clique em uma barra = aplica filtro de Categoria.
+	2.	Método de Pagamento (empilhado) (chart_metodos_empilhados)
+	•	Stacks: BOLETO, PIX, CARTAO/AUTODEB, OUTROS.
+	•	Mostrar também ticket médio por método (tooltip).
+	3.	Linha Semanal (chart_semana)
+	•	Semanas do mês (seg-dom); Y = ΣValor (abs) por semana.
+	•	Destacar picos (> média + 1 desvio-padrão).
+	4.	Waterfall MoM por Categoria (chart_mom_waterfall)
+	•	Diferença MÊS_ALVO vs MÊS_ANT por categoria (↑/↓ em R$).
+	•	Se MÊS_ANT ausente, ocultar e mostrar aviso “sem base comparativa”.
+	5.	Top 10 Fornecedores (table_top_fornecedores)
+	•	Colunas: Fornecedor | Categoria | Valor (R$) | % do mês | #lanç.
+	•	Click abre drill-down (lista de lançamentos daquele fornecedor).
+	6.	Impostos do Mês (table_impostos)
+	•	Colunas: Data | Descrição (Histórico) | Valor (R$) | Nível (Municipal/Estadual/Federal/IOF*)
+	•	Detectar nível por palavra-chave básica: “Prefeitura/Município”=Municipal; “DARF/Receita Federal/IR/CSLL/INSS/FGTS”=Federal; “ICMS/Estadual”=Estadual; “IOF”=IOF.
+	7.	Boletos por Favorecido (table_boletos)
+	•	Colunas: Data | Favorecido | Valor (R$) | Categoria inferida (se houver)
+	•	Botão “Exportar CSV desta lista” (aplica filtros).
+	8.	PIX Enviado — Ranking de Destinatários (table_pix_out_rank)
+	•	Colunas: Contraparte | ΣValor (abs) | #lanç.
+	•	Click abre drill-down de lançamentos PIX daquela contraparte.
+	9.	Outros/Conferir (table_outros)
+	•	Lista para saneamento: Data | Histórico | Valor | Fornecedor/Contraparte
+	•	CTA: “baixar CSV para mapear categorias”.
+
+5) Alertas (cards)
+	•	alert_outros_pct: Outros/Conferir > 5% do total → “Revisar mapeamentos”.
+	•	alert_concentracao_fornecedor: Fornecedor > 10% do mês.
+	•	alert_variacao_categoria: Categoria com ΔMoM > 20%.
+	•	alert_pix_pf: PIX Enviado a PF fora da janela salarial (se campo existir).
+	•	alert_dif_titular: presença de DIF TITULAR no escopo Operacional (exibir contador; se houver whitelist ativa e a conta for do grupo, não alertar).
+
+6) Interações & Drill-down
+	•	Qualquer KPI/gráfico → aplica filtro correspondente.
+	•	Tabelas com paginador e export CSV do subconjunto filtrado.
+	•	Drill-down mostra: Data | Valor | Histórico | Fornecedor/Contraparte | Categoria | Método.
+
+7) Regras de Consumo (sem reprocesar)
+	•	Se existir despesas_operacionais_{AAAA-MM}.csv, usar direto para widgets de despesas; do contrário, filtrar extrato_classificado_{AAAA-MM}.csv por OperacionalFlag=true e Valor<0.
+	•	Para categorias, priorizar arquivo despesas_por_categoria_{AAAA-MM}.csv; se ausente, agregar por Categoria.
+	•	Impostos sempre do impostos_{AAAA-MM}.csv; se ausente, filtrar extrato_classificado por EhImposto=true.
+	•	Boletos do arquivo boletos_{AAAA-MM}.csv; caso ausente, filtrar por MetodoPagamento=BOLETO ou Historico contém “BOLETO” e extrair Favorecido.
+	•	PIX Enviado do pix_enviado_{AAAA-MM}.csv; se ausente, filtrar por MetodoPagamento=PIX e Valor<0.
+
+8) Layout (grid simples)
+	•	Linha 1: kpi_saidas_op_valor | kpi_qtd_lanc | kpi_variacao_mom | kpi_ticket_medio | kpi_outros_pct
+	•	Linha 2: chart_categorias_barras (2/3 largura) | chart_metodos_empilhados (1/3)
+	•	Linha 3: chart_semana (1/2) | chart_mom_waterfall (1/2)
+	•	Linha 4: table_top_fornecedores (full)
+	•	Linha 5: table_impostos (1/2) | table_boletos (1/2)
+	•	Linha 6: table_pix_out_rank (1/2) | table_outros (1/2)
+	•	Linha 7: cards de Alertas
+
+⸻
+
+Aceite de qualidade (pronto/ok quando…)
+	•	KPIs e gráficos se atualizam ao trocar Mês/Ano.
+	•	Filtros globais afetam tudo.
+	•	Widgets ausentes quando faltar arquivo, com aviso discreto.
+	•	Export de qualquer tabela respeita filtros ativos.
+	•	Escopo=Operacional exclui transferências internas, aplicações/resgates e IOF adicional automático.
