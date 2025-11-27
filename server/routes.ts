@@ -509,12 +509,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get annual expenses summary for charts - usando dados reais do banco
+  // Get annual expenses summary for charts - de saved reports OU bank transactions
   app.get("/api/annual-expenses-summary", async (req, res) => {
     try {
       const year = parseInt(req.query.year as string) || new Date().getFullYear();
-      const reports = await storage.getSavedMonthlyReports();
-      
       const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       const monthData: Record<number, any> = {};
       
@@ -531,15 +529,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }
       
-      // Processar relatórios salvos do banco
+      // 1. Tentar carregar de saved monthly reports primeiro
+      const reports = await storage.getSavedMonthlyReports();
+      let hasData = false;
+      
       reports.forEach((report: any) => {
         if (report.ano !== year) return;
+        hasData = true;
         
         const mes = report.mes;
         if (!monthData[mes]) return;
         
         try {
-          // Extrair dados JSON
           const transactions = Array.isArray(report.transactionsData) ? report.transactionsData : 
                               (typeof report.transactionsData === 'string' ? JSON.parse(report.transactionsData) : []);
           
@@ -549,37 +550,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const categoryData = Array.isArray(report.categoryReportData) ? report.categoryReportData :
                               (typeof report.categoryReportData === 'string' ? JSON.parse(report.categoryReportData) : []);
           
-          // Receita (entradas positivas) - vem de receitasRealizadas
           monthData[mes].receita = Math.abs(parseFloat(summary.receitasRealizadas?.toString() || "0"));
-          
-          // Gasto total (saídas) - vem de saidasReais
           monthData[mes].gasto = Math.abs(parseFloat(summary.saidasReais?.toString() || "0"));
           
-          // Calcular impostos, folha e outros das categorias
-          const totalGasto = monthData[mes].gasto;
-          
-          // Impostos - filtrar por categoria que contém "imposto"
           const impostos = categoryData.filter((c: any) => 
             c.categoria?.toLowerCase().includes('imposto') ||
             c.categoria?.toLowerCase().includes('taxa')
           ).reduce((sum: number, c: any) => sum + Math.abs(parseFloat(c.valor?.toString() || "0")), 0);
           monthData[mes].impostos = impostos;
           
-          // Folha de pagamento - filtrar por categoria folha/salário
           const folha = categoryData.filter((c: any) => 
             c.categoria?.toLowerCase().includes('folha') ||
             c.categoria?.toLowerCase().includes('salár') ||
             c.categoria?.toLowerCase().includes('pagamento de pessoal')
           ).reduce((sum: number, c: any) => sum + Math.abs(parseFloat(c.valor?.toString() || "0")), 0);
           monthData[mes].folha = folha;
-          
-          // Outros gastos (total - impostos - folha)
-          monthData[mes].outros = Math.max(0, totalGasto - impostos - folha);
+          monthData[mes].outros = Math.max(0, monthData[mes].gasto - impostos - folha);
           
         } catch (parseError) {
           console.error(`Erro ao processar relatório ${mes}/${year}:`, parseError);
         }
       });
+      
+      // 2. Se não houver dados salvos, usar bank_transactions
+      if (!hasData) {
+        const bankTransactions = await storage.getBankTransactions();
+        
+        bankTransactions.forEach((t: any) => {
+          if (parseInt(t.ano?.toString() || "0") !== year) return;
+          
+          const mes = parseInt(t.mes?.toString() || "0");
+          if (mes < 1 || mes > 12 || !monthData[mes]) return;
+          
+          const valor = Math.abs(parseFloat(t.valor?.toString() || "0"));
+          const categoria = (t.categoria?.toString() || "").toLowerCase();
+          const isOperacional = t.ehOperacional === 1 || t.ehOperacional === true;
+          
+          // Receita ou Gasto
+          if (parseFloat(t.valor?.toString() || "0") > 0) {
+            monthData[mes].receita += valor;
+          } else {
+            monthData[mes].gasto += valor;
+          }
+          
+          // Impostos
+          if (categoria.includes('imposto') || categoria.includes('taxa')) {
+            monthData[mes].impostos += valor;
+          }
+          
+          // Folha
+          if (categoria.includes('folha') || categoria.includes('salár') || categoria.includes('pagamento de pessoal')) {
+            monthData[mes].folha += valor;
+          }
+        });
+        
+        // Calcular Outros após somar tudo
+        Object.keys(monthData).forEach(mesStr => {
+          const mes = parseInt(mesStr);
+          monthData[mes].outros = Math.max(0, monthData[mes].gasto - monthData[mes].impostos - monthData[mes].folha);
+        });
+      }
       
       res.json(Object.values(monthData));
     } catch (error) {
