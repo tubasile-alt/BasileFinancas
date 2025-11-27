@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TrendingUp, Users, DollarSign, Calendar, CreditCard } from "lucide-react";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import PasswordProtection from "@/components/password-protection";
 import { MainNavigation } from "@/components/main-navigation";
 import { getProcedureCost, MONTHLY_FIXED_COSTS } from "@/lib/procedure-costs";
@@ -38,6 +39,16 @@ interface PaymentMethodReportData {
   percentage: number;
 }
 
+interface AnnualExpenseData {
+  mes: number;
+  label: string;
+  receita: number;
+  gasto: number;
+  impostos: number;
+  folha: number;
+  outros: number;
+}
+
 export default function MonthlyDashboard() {
   const currentDate = new Date();
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
@@ -57,6 +68,11 @@ export default function MonthlyDashboard() {
   const { data: paymentReport, isLoading: isLoadingPayment } = useQuery<PaymentMethodReportData[]>({
     queryKey: ["/api/monthly-report-by-payment", selectedYear, selectedMonth],
     enabled: !!selectedYear && !!selectedMonth,
+  });
+
+  const { data: annualExpenses, isLoading: isLoadingAnnual } = useQuery<AnnualExpenseData[]>({
+    queryKey: ["/api/annual-expenses-summary", selectedYear],
+    enabled: !!selectedYear,
   });
 
   const formatCurrency = (value: number) => {
@@ -292,7 +308,7 @@ export default function MonthlyDashboard() {
         </div>
 
         {/* Métodos de Pagamento */}
-        <Card className="p-6">
+        <Card className="p-6 mb-6">
           <h3 className="text-xl font-semibold mb-6 flex items-center">
             <CreditCard className="h-6 w-6 mr-3" />
             Distribuição por Método de Pagamento
@@ -325,6 +341,98 @@ export default function MonthlyDashboard() {
                 </div>
               ))}
             </div>
+          )}
+        </Card>
+
+        {/* GRÁFICOS ANUAIS */}
+        <h2 className="text-2xl font-bold mb-6">Análise Anual {selectedYear}</h2>
+
+        {/* 1. Gráfico de Receita e Gastos por Mês */}
+        <Card className="p-6 mb-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <TrendingUp className="h-5 w-5 mr-2" />
+            Receita vs Gasto por Mês
+          </h3>
+          {isLoadingAnnual ? (
+            <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={annualExpenses || []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="label" />
+                <YAxis />
+                <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                <Legend />
+                <Bar dataKey="receita" fill="#10b981" name="Receita" />
+                <Bar dataKey="gasto" fill="#ef4444" name="Gasto" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+
+        {/* 2. Gráfico de Gastos em Impostos por Mês */}
+        <Card className="p-6 mb-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <DollarSign className="h-5 w-5 mr-2" />
+            Gastos em Impostos por Mês
+          </h3>
+          {isLoadingAnnual ? (
+            <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={annualExpenses || []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="label" />
+                <YAxis />
+                <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                <Legend />
+                <Line type="monotone" dataKey="impostos" stroke="#f59e0b" name="Impostos" strokeWidth={2} dot={{ r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+
+        {/* 3. Gráfico de Folha de Pagamento por Mês */}
+        <Card className="p-6 mb-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <Users className="h-5 w-5 mr-2" />
+            Folha de Pagamento por Mês
+          </h3>
+          {isLoadingAnnual ? (
+            <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={annualExpenses || []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="label" />
+                <YAxis />
+                <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                <Legend />
+                <Bar dataKey="folha" fill="#8b5cf6" name="Folha de Pagamento" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+
+        {/* 4. Gráfico de Outros Gastos por Mês */}
+        <Card className="p-6 mb-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <BarChart className="h-5 w-5 mr-2" />
+            Outros Gastos por Mês
+          </h3>
+          {isLoadingAnnual ? (
+            <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={annualExpenses || []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="label" />
+                <YAxis />
+                <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                <Legend />
+                <Bar dataKey="outros" fill="#06b6d4" name="Outros Gastos" />
+              </BarChart>
+            </ResponsiveContainer>
           )}
         </Card>
       </main>

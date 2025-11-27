@@ -509,6 +509,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get annual expenses summary for charts
+  app.get("/api/annual-expenses-summary", async (req, res) => {
+    try {
+      const year = parseInt(req.query.year as string) || new Date().getFullYear();
+      const reports = await storage.getSavedMonthlyReports();
+      
+      const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      const monthData: Record<string, any> = {};
+      
+      // Initialize months
+      for (let i = 1; i <= 12; i++) {
+        monthData[i] = {
+          mes: i,
+          label: monthNames[i - 1],
+          receita: 0,
+          gasto: 0,
+          impostos: 0,
+          folha: 0,
+          outros: 0
+        };
+      }
+      
+      // Process reports
+      reports.forEach((report: any) => {
+        if (report.ano !== year) return;
+        
+        const mes = report.mes;
+        if (!monthData[mes]) return;
+        
+        const transactions = report.transactionsData || [];
+        const summary = report.enhancedSummaryData || {};
+        
+        // Receita (entradas positivas)
+        monthData[mes].receita = Math.abs(parseFloat(summary.receitasRealizadas?.toString() || "0"));
+        
+        // Gasto total
+        monthData[mes].gasto = Math.abs(parseFloat(summary.saidasReais?.toString() || "0"));
+        
+        // Impostos
+        const impostos = transactions.filter((t: any) => 
+          t.categoria?.toLowerCase().includes('imposto') || 
+          t.ehImposto
+        ).reduce((sum: number, t: any) => sum + Math.abs(parseFloat(t.valor?.toString() || "0")), 0);
+        monthData[mes].impostos = impostos;
+        
+        // Folha de pagamento
+        const folha = transactions.filter((t: any) => 
+          t.categoria?.toLowerCase().includes('folha') || 
+          t.categoria?.toLowerCase().includes('salár') ||
+          t.historico?.toLowerCase().includes('folha')
+        ).reduce((sum: number, t: any) => sum + Math.abs(parseFloat(t.valor?.toString() || "0")), 0);
+        monthData[mes].folha = folha;
+        
+        // Outros gastos (total - impostos - folha)
+        monthData[mes].outros = monthData[mes].gasto - impostos - folha;
+      });
+      
+      res.json(Object.values(monthData));
+    } catch (error) {
+      console.error("Error in annual summary:", error);
+      res.json([]);
+    }
+  });
+
   // Get saved monthly report by period (year/month) - MUST come before :id route
   app.get("/api/saved-monthly-reports/period/:year/:month", async (req, res) => {
     try {
