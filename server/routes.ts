@@ -577,6 +577,207 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Insights Dashboard - Read from CSV files
+  app.get("/api/insights/meses", async (req, res) => {
+    try {
+      const fs = await import("fs");
+      const path = await import("path");
+      const workspace = process.cwd();
+      const meses: Set<string> = new Set();
+      
+      // Check outputs and saida_* directories
+      const dirs = fs.readdirSync(workspace).filter((d: string) => 
+        d.startsWith("outputs") || d.startsWith("saida_")
+      );
+      
+      dirs.forEach((dir: string) => {
+        try {
+          const fullPath = path.join(workspace, dir);
+          if (fs.statSync(fullPath).isDirectory()) {
+            const files = fs.readdirSync(fullPath);
+            files.forEach((f: string) => {
+              const match = f.match(/(\d{4})-(\d{2})/);
+              if (match) {
+                meses.add(`${match[1]}-${match[2]}`);
+              }
+            });
+          }
+        } catch {}
+      });
+      
+      res.json(Array.from(meses).sort().reverse());
+    } catch (error) {
+      res.json([]);
+    }
+  });
+
+  app.get("/api/insights", async (req, res) => {
+    try {
+      const fs = await import("fs");
+      const path = await import("path");
+      const Papa = await import("papaparse");
+      
+      const mes = (req.query.mes as string) || "2025-10";
+      const workspace = process.cwd();
+      
+      const resultado = {
+        kpis: {
+          kpi_saidas_op_valor: 0,
+          kpi_qtd_lanc: 0,
+          kpi_variacao_mom: 0,
+          kpi_ticket_medio: 0,
+          kpi_outros_pct: 0
+        },
+        chart_categorias: [] as any[],
+        chart_metodos: [] as any[],
+        chart_semana: [] as any[],
+        chart_mom_waterfall: [] as any[],
+        top_fornecedores: [] as any[],
+        impostos: [] as any[],
+        boletos: [] as any[],
+        pix_out: [] as any[],
+        outros: [] as any[],
+        alertas: [] as any[]
+      };
+
+      // Find and read CSV files
+      const dirs = fs.readdirSync(workspace).filter((d: string) => 
+        (d.startsWith("outputs") || d.startsWith("saida_")) && 
+        fs.statSync(path.join(workspace, d)).isDirectory()
+      );
+
+      let allData: any[] = [];
+      dirs.forEach((dir: string) => {
+        const fullPath = path.join(workspace, dir);
+        try {
+          const files = fs.readdirSync(fullPath);
+          files.forEach((f: string) => {
+            if (f.includes(mes.replace("-", "-")) && f.endsWith(".csv")) {
+              const filePath = path.join(fullPath, f);
+              const content = fs.readFileSync(filePath, "utf-8");
+              const parsed = Papa.parse(content, { header: true });
+              allData.push(...(parsed.data || []));
+            }
+          });
+        } catch {}
+      });
+
+      if (allData.length === 0) {
+        return res.json(resultado);
+      }
+
+      // Process data
+      const categoriaMap: { [key: string]: number } = {};
+      const fornecedorMap: { [key: string]: any } = {};
+      const metodosMap: { [key: string]: number } = {};
+      let totalSaidas = 0;
+      let qtdLanc = 0;
+
+      allData.forEach((row: any) => {
+        if (!row.Valor) return;
+        
+        const valor = Math.abs(parseFloat(row.Valor) || 0);
+        if (valor === 0) return;
+
+        const categoria = row.Categoria || row.categoria || "Outros";
+        const fornecedor = row.Fornecido || row.Favorecido || row.favorecido || "N/A";
+        const metodo = row.MetodoPagamento || row.metodo || "OUTROS";
+        const data = row.Data || row.data || "";
+
+        qtdLanc++;
+        categoriaMap[categoria] = (categoriaMap[categoria] || 0) + valor;
+        metodosMap[metodo] = (metodosMap[metodo] || 0) + valor;
+        totalSaidas += valor;
+
+        if (!fornecedorMap[fornecedor]) {
+          fornecedorMap[fornecedor] = { valor: 0, lancamentos: 0, categoria };
+        }
+        fornecedorMap[fornecedor].valor += valor;
+        fornecedorMap[fornecedor].lancamentos++;
+
+        // Impostos
+        if (categoria.toLowerCase().includes("imposto")) {
+          resultado.impostos.push({
+            data,
+            descricao: row.Historico || row.historico || "",
+            valor,
+            nivel: "Federal"
+          });
+        }
+
+        // Boletos
+        if (metodo.includes("BOLETO")) {
+          resultado.boletos.push({ data, favorecido: fornecedor, valor, categoria });
+        }
+
+        // PIX
+        if (metodo.includes("PIX")) {
+          resultado.pix_out.push({ contraparte: fornecedor, valor, lancamentos: 1 });
+        }
+
+        // Outros
+        if (categoria === "Outros" || categoria === "Conferir") {
+          resultado.outros.push({
+            data,
+            historico: row.Historico || row.historico || "",
+            valor,
+            favorecido: fornecedor
+          });
+        }
+      });
+
+      // Calcular KPIs
+      resultado.kpis.kpi_saidas_op_valor = totalSaidas;
+      resultado.kpis.kpi_qtd_lanc = qtdLanc;
+      resultado.kpis.kpi_ticket_medio = qtdLanc > 0 ? totalSaidas / qtdLanc : 0;
+      resultado.kpis.kpi_outros_pct = 
+        (categoriaMap["Outros"] || 0) / totalSaidas * 100;
+
+      // Gráficos
+      resultado.chart_categorias = Object.entries(categoriaMap)
+        .map(([cat, val]) => ({
+          categoria: cat,
+          valor: val as number,
+          percentual: ((val as number) / totalSaidas * 100)
+        }))
+        .sort((a, b) => b.valor - a.valor)
+        .slice(0, 10);
+
+      resultado.chart_metodos = Object.entries(metodosMap)
+        .map(([met, val]) => ({
+          metodo: met,
+          valor: val,
+          percentual: (val / totalSaidas * 100),
+          ticket_medio: 0
+        }));
+
+      resultado.top_fornecedores = Object.entries(fornecedorMap)
+        .map(([f, data]: any) => ({
+          fornecedor: f,
+          valor: data.valor,
+          categoria: data.categoria,
+          percentual: (data.valor / totalSaidas * 100),
+          lancamentos: data.lancamentos
+        }))
+        .sort((a, b) => b.valor - a.valor)
+        .slice(0, 10);
+
+      // Alertas
+      if (resultado.kpis.kpi_outros_pct > 5) {
+        resultado.alertas.push({
+          tipo: "Mapeamento de Categorias",
+          mensagem: `${resultado.kpis.kpi_outros_pct.toFixed(1)}% das despesas estão em "Outros/Conferir" (meta: < 5%)`,
+          severidade: "warning"
+        });
+      }
+
+      res.json(resultado);
+    } catch (error) {
+      console.error("Error in insights endpoint:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
