@@ -123,6 +123,8 @@ export class MemStorage implements IStorage {
   private learnedClassifications: Map<string, LearnedClassification>;
   private savedMonthlyReports: Map<string, SavedMonthlyReport>;
   private employees: Map<string, Employee>;
+  private patients: Map<string, Patient>;
+  private patientEvolutions: Map<string, PatientEvolution>;
 
   constructor() {
     this.users = new Map();
@@ -132,6 +134,8 @@ export class MemStorage implements IStorage {
     this.learnedClassifications = new Map();
     this.savedMonthlyReports = new Map();
     this.employees = new Map();
+    this.patients = new Map();
+    this.patientEvolutions = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -851,6 +855,76 @@ export class MemStorage implements IStorage {
 
   async deleteEmployee(id: string): Promise<boolean> {
     return this.employees.delete(id);
+  }
+
+  // Patients CRUD
+  async createPatient(insertPatient: InsertPatient): Promise<Patient> {
+    const id = randomUUID();
+    const patient: Patient = {
+      ...insertPatient,
+      id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.patients.set(id, patient);
+    return patient;
+  }
+
+  async getPatients(searchTerm?: string): Promise<Patient[]> {
+    let patientList = Array.from(this.patients.values());
+    if (searchTerm && searchTerm.length > 0) {
+      patientList = patientList.filter(p =>
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.code.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    return patientList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async getPatient(id: string): Promise<Patient | undefined> {
+    return this.patients.get(id);
+  }
+
+  async updatePatient(id: string, updateData: Partial<InsertPatient>): Promise<Patient | undefined> {
+    const existing = this.patients.get(id);
+    if (!existing) return undefined;
+    const updated: Patient = {
+      ...existing,
+      ...updateData,
+      updatedAt: new Date(),
+    };
+    this.patients.set(id, updated);
+    return updated;
+  }
+
+  async deletePatient(id: string): Promise<boolean> {
+    // Deletar evoluções primeiro
+    const evolutions = Array.from(this.patientEvolutions.values()).filter(e => e.patientId === id);
+    evolutions.forEach(e => this.patientEvolutions.delete(e.id));
+    return this.patients.delete(id);
+  }
+
+  // Patient Evolutions CRUD
+  async createPatientEvolution(insertEvolution: InsertPatientEvolution): Promise<PatientEvolution> {
+    const id = randomUUID();
+    const evolution: PatientEvolution = {
+      ...insertEvolution,
+      id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.patientEvolutions.set(id, evolution);
+    return evolution;
+  }
+
+  async getPatientEvolutions(patientId: string): Promise<PatientEvolution[]> {
+    return Array.from(this.patientEvolutions.values())
+      .filter(e => e.patientId === patientId)
+      .sort((a, b) => new Date(b.evolutionDate).getTime() - new Date(a.evolutionDate).getTime());
+  }
+
+  async deletePatientEvolution(id: string): Promise<boolean> {
+    return this.patientEvolutions.delete(id);
   }
 
   async updateSavedMonthlyReport(id: string, updateData: Partial<InsertSavedMonthlyReport>): Promise<SavedMonthlyReport | undefined> {
@@ -1707,6 +1781,52 @@ export class DatabaseStorage implements IStorage {
 
   async deleteEmployee(id: string): Promise<boolean> {
     const result = await db.delete(employees).where(eq(employees.id, id));
+    return (result.rowCount || 0) > 0;
+  }
+
+  // Patients CRUD
+  async createPatient(insertPatient: InsertPatient): Promise<Patient> {
+    const [patient] = await db.insert(patients).values(insertPatient).returning();
+    return patient;
+  }
+
+  async getPatients(searchTerm?: string): Promise<Patient[]> {
+    let query = db.select().from(patients);
+    if (searchTerm && searchTerm.length > 0) {
+      query = query.where(
+        sql`${patients.name} ilike ${`%${searchTerm}%`} or ${patients.code} ilike ${`%${searchTerm}%`}`
+      );
+    }
+    return query.orderBy(sql`${patients.createdAt} desc`);
+  }
+
+  async getPatient(id: string): Promise<Patient | undefined> {
+    const [patient] = await db.select().from(patients).where(eq(patients.id, id));
+    return patient || undefined;
+  }
+
+  async updatePatient(id: string, updateData: Partial<InsertPatient>): Promise<Patient | undefined> {
+    const [updated] = await db.update(patients).set({ ...updateData, updatedAt: new Date() }).where(eq(patients.id, id)).returning();
+    return updated || undefined;
+  }
+
+  async deletePatient(id: string): Promise<boolean> {
+    const result = await db.delete(patients).where(eq(patients.id, id));
+    return (result.rowCount || 0) > 0;
+  }
+
+  // Patient Evolutions CRUD
+  async createPatientEvolution(insertEvolution: InsertPatientEvolution): Promise<PatientEvolution> {
+    const [evolution] = await db.insert(patientEvolutions).values(insertEvolution).returning();
+    return evolution;
+  }
+
+  async getPatientEvolutions(patientId: string): Promise<PatientEvolution[]> {
+    return db.select().from(patientEvolutions).where(eq(patientEvolutions.patientId, patientId)).orderBy(sql`${patientEvolutions.evolutionDate} desc`);
+  }
+
+  async deletePatientEvolution(id: string): Promise<boolean> {
+    const result = await db.delete(patientEvolutions).where(eq(patientEvolutions.id, id));
     return (result.rowCount || 0) > 0;
   }
 
