@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertFinancialEntrySchema, insertBankTransactionPersistentSchema, insertManualExpenseSchema, insertLearnedClassificationSchema, annualSpendQuerySchema, insertSavedMonthlyReportSchema, insertEmployeeSchema } from "@shared/schema";
+import { insertFinancialEntrySchema, insertBankTransactionPersistentSchema, insertManualExpenseSchema, insertLearnedClassificationSchema, annualSpendQuerySchema, insertSavedMonthlyReportSchema, insertEmployeeSchema, insertPatientSchema, insertPatientEvolutionSchema } from "@shared/schema";
 import { z } from "zod";
 
 // Default employees to load on startup
@@ -682,6 +682,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "Saved monthly report deleted successfully" });
     } catch (error) {
       console.error("Error deleting saved monthly report:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // PATIENTS ROUTES
+  // Create patient
+  app.post("/api/patients", async (req, res) => {
+    try {
+      const validatedData = insertPatientSchema.parse(req.body);
+      const patient = await storage.createPatient(validatedData);
+      res.json(patient);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Validation error", errors: error.errors });
+      } else {
+        console.error("Error creating patient:", error);
+        res.status(500).json({ message: "Internal server error" });
+      }
+    }
+  });
+
+  // Get all patients with optional search
+  app.get("/api/patients", async (req, res) => {
+    try {
+      const searchTerm = req.query.search as string | undefined;
+      const patients = await storage.getPatients(searchTerm);
+      res.json(patients);
+    } catch (error) {
+      console.error("Error fetching patients:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Get single patient
+  app.get("/api/patients/:id", async (req, res) => {
+    try {
+      const patient = await storage.getPatient(req.params.id);
+      if (!patient) {
+        return res.status(404).json({ message: "Patient not found" });
+      }
+      res.json(patient);
+    } catch (error) {
+      console.error("Error fetching patient:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Update patient
+  app.patch("/api/patients/:id", async (req, res) => {
+    try {
+      const updateData = insertPatientSchema.partial().parse(req.body);
+      const patient = await storage.updatePatient(req.params.id, updateData);
+      if (!patient) {
+        return res.status(404).json({ message: "Patient not found" });
+      }
+      res.json(patient);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Validation error", errors: error.errors });
+      } else {
+        console.error("Error updating patient:", error);
+        res.status(500).json({ message: "Internal server error" });
+      }
+    }
+  });
+
+  // Delete patient
+  app.delete("/api/patients/:id", async (req, res) => {
+    try {
+      const success = await storage.deletePatient(req.params.id);
+      if (!success) {
+        return res.status(404).json({ message: "Patient not found" });
+      }
+      res.json({ message: "Patient deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting patient:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // PATIENT EVOLUTIONS ROUTES
+  // Create evolution for patient
+  app.post("/api/patients/:patientId/evolutions", async (req, res) => {
+    try {
+      const validatedData = insertPatientEvolutionSchema.parse({
+        ...req.body,
+        patientId: req.params.patientId,
+      });
+      const evolution = await storage.createPatientEvolution(validatedData);
+      res.json(evolution);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Validation error", errors: error.errors });
+      } else {
+        console.error("Error creating patient evolution:", error);
+        res.status(500).json({ message: "Internal server error" });
+      }
+    }
+  });
+
+  // Get evolutions for patient
+  app.get("/api/patients/:patientId/evolutions", async (req, res) => {
+    try {
+      const evolutions = await storage.getPatientEvolutions(req.params.patientId);
+      res.json(evolutions);
+    } catch (error) {
+      console.error("Error fetching patient evolutions:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Delete evolution
+  app.delete("/api/evolutions/:id", async (req, res) => {
+    try {
+      const success = await storage.deletePatientEvolution(req.params.id);
+      if (!success) {
+        return res.status(404).json({ message: "Evolution not found" });
+      }
+      res.json({ message: "Evolution deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting evolution:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });

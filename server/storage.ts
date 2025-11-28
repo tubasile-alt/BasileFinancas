@@ -862,6 +862,9 @@ export class MemStorage implements IStorage {
     const id = randomUUID();
     const patient: Patient = {
       ...insertPatient,
+      email: insertPatient.email || null,
+      phone: insertPatient.phone || null,
+      notes: insertPatient.notes || null,
       id,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -878,7 +881,11 @@ export class MemStorage implements IStorage {
         p.code.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-    return patientList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return patientList.sort((a, b) => {
+      const dateA = typeof b.createdAt === 'string' ? new Date(b.createdAt) : b.createdAt;
+      const dateB = typeof a.createdAt === 'string' ? new Date(a.createdAt) : a.createdAt;
+      return dateA.getTime() - dateB.getTime();
+    });
   }
 
   async getPatient(id: string): Promise<Patient | undefined> {
@@ -1791,13 +1798,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPatients(searchTerm?: string): Promise<Patient[]> {
-    let query = db.select().from(patients);
     if (searchTerm && searchTerm.length > 0) {
-      query = query.where(
+      return db.select().from(patients).where(
         sql`${patients.name} ilike ${`%${searchTerm}%`} or ${patients.code} ilike ${`%${searchTerm}%`}`
-      );
+      ).orderBy(sql`${patients.createdAt} desc`);
     }
-    return query.orderBy(sql`${patients.createdAt} desc`);
+    return db.select().from(patients).orderBy(sql`${patients.createdAt} desc`);
   }
 
   async getPatient(id: string): Promise<Patient | undefined> {
