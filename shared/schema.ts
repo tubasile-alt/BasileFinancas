@@ -391,3 +391,44 @@ export type InsertAnnualMonth = z.infer<typeof insertAnnualMonthSchema>;
 export type InsertAnnualCategoryTotal = z.infer<typeof insertAnnualCategoryTotalSchema>;
 export type InsertAnnualSpendResponse = z.infer<typeof insertAnnualSpendResponseSchema>;
 export type InsertAnnualSpendQuery = z.infer<typeof insertAnnualSpendQuerySchema>;
+
+// Patients Table
+export const patients = pgTable("patients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  code: text("code").notNull().unique(),
+  email: text("email"),
+  phone: text("phone"),
+  notes: text("notes"),
+  firstConsultationDate: text("first_consultation_date").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const insertPatientSchema = createInsertSchema(patients).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertPatient = z.infer<typeof insertPatientSchema>;
+export type Patient = typeof patients.$inferSelect;
+
+// Patient Evolutions Table (Timeline)
+export const patientEvolutions = pgTable("patient_evolutions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  patientId: varchar("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+  evolutionDate: text("evolution_date").notNull(),
+  description: text("description").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const insertPatientEvolutionSchema = createInsertSchema(patientEvolutions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertPatientEvolution = z.infer<typeof insertPatientEvolutionSchema>;
+export type PatientEvolution = typeof patientEvolutions.$inferSelect;

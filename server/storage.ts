@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, type DailyClosure, type InsertDailyClosure, type BankTransactionPersistent, type InsertBankTransactionPersistent, type ManualExpense, type InsertManualExpense, type LearnedClassification, type InsertLearnedClassification, type AnnualSpendResponse, type AnnualSpendQuery, type SavedMonthlyReport, type InsertSavedMonthlyReport, type Employee, type InsertEmployee, users, financialEntries, dailyClosure, bankTransactions, manualExpenses, learnedClassifications, savedMonthlyReports, employees } from "@shared/schema";
+import { type User, type InsertUser, type FinancialEntry, type InsertFinancialEntry, type DailyClosure, type InsertDailyClosure, type BankTransactionPersistent, type InsertBankTransactionPersistent, type ManualExpense, type InsertManualExpense, type LearnedClassification, type InsertLearnedClassification, type AnnualSpendResponse, type AnnualSpendQuery, type SavedMonthlyReport, type InsertSavedMonthlyReport, type Employee, type InsertEmployee, type Patient, type InsertPatient, type PatientEvolution, type InsertPatientEvolution, users, financialEntries, dailyClosure, bankTransactions, manualExpenses, learnedClassifications, savedMonthlyReports, employees, patients, patientEvolutions } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, like, ilike, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -101,6 +101,18 @@ export interface IStorage {
   getEmployees(): Promise<Employee[]>;
   getEmployee(id: string): Promise<Employee | undefined>;
   deleteEmployee(id: string): Promise<boolean>;
+
+  // Patients CRUD
+  createPatient(patient: InsertPatient): Promise<Patient>;
+  getPatients(searchTerm?: string): Promise<Patient[]>;
+  getPatient(id: string): Promise<Patient | undefined>;
+  updatePatient(id: string, patient: Partial<InsertPatient>): Promise<Patient | undefined>;
+  deletePatient(id: string): Promise<boolean>;
+
+  // Patient Evolutions CRUD
+  createPatientEvolution(evolution: InsertPatientEvolution): Promise<PatientEvolution>;
+  getPatientEvolutions(patientId: string): Promise<PatientEvolution[]>;
+  deletePatientEvolution(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
