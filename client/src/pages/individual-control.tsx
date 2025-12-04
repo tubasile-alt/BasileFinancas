@@ -50,6 +50,16 @@ interface DoctorReportData {
   nfTotal: number;
 }
 
+// Helper function to parse date strings without timezone offset
+const parseLocalDate = (dateStr: string): Date => {
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const [year, month, day] = parts.map(Number);
+    return new Date(year, month - 1, day);
+  }
+  return new Date(dateStr);
+};
+
 export default function IndividualControl() {
   const { toast } = useToast();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -119,7 +129,7 @@ export default function IndividualControl() {
   // Filtrar entradas do médico e mês selecionados
   const entries = allEntries?.filter(e => {
     if (e.doctor !== selectedDoctor) return false;
-    const entryDate = new Date(e.entryDate);
+    const entryDate = parseLocalDate(e.entryDate);
     return entryDate.getFullYear() === selectedYear && 
            (entryDate.getMonth() + 1) === selectedMonth;
   }) || [];
@@ -174,7 +184,7 @@ export default function IndividualControl() {
 
   const printCardList = () => {
     const sortedEntries = [...cardEntries].sort((a, b) => 
-      new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+      parseLocalDate(a.entryDate).getTime() - parseLocalDate(b.entryDate).getTime()
     );
     
     const printWindow = window.open('', '', 'width=800,height=600');
@@ -230,7 +240,7 @@ export default function IndividualControl() {
                 </div>
                 <div style="text-align: right;">
                   <div class="total">${formatCurrency(totalCard)}</div>
-                  <div class="date">${new Date(entry.entryDate).toLocaleDateString('pt-BR')}</div>
+                  <div class="date">${parseLocalDate(entry.entryDate).toLocaleDateString('pt-BR')}</div>
                 </div>
               </div>
             </div>
@@ -251,7 +261,7 @@ export default function IndividualControl() {
 
   const printPixList = () => {
     const sortedEntries = [...pixEntries].sort((a, b) => 
-      new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+      parseLocalDate(a.entryDate).getTime() - parseLocalDate(b.entryDate).getTime()
     );
     
     const printWindow = window.open('', '', 'width=800,height=600');
@@ -302,7 +312,7 @@ export default function IndividualControl() {
                 </div>
                 <div style="text-align: right;">
                   <div class="total">${formatCurrency(totalPix)}</div>
-                  <div class="date">${new Date(entry.entryDate).toLocaleDateString('pt-BR')}</div>
+                  <div class="date">${parseLocalDate(entry.entryDate).toLocaleDateString('pt-BR')}</div>
                 </div>
               </div>
             </div>
@@ -323,7 +333,7 @@ export default function IndividualControl() {
 
   const printMoneyList = () => {
     const sortedEntries = [...moneyEntries].sort((a, b) => 
-      new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+      parseLocalDate(a.entryDate).getTime() - parseLocalDate(b.entryDate).getTime()
     );
     
     const printWindow = window.open('', '', 'width=800,height=600');
@@ -374,7 +384,7 @@ export default function IndividualControl() {
                 </div>
                 <div style="text-align: right;">
                   <div class="total">${formatCurrency(totalMoney)}</div>
-                  <div class="date">${new Date(entry.entryDate).toLocaleDateString('pt-BR')}</div>
+                  <div class="date">${parseLocalDate(entry.entryDate).toLocaleDateString('pt-BR')}</div>
                 </div>
               </div>
             </div>
@@ -395,7 +405,7 @@ export default function IndividualControl() {
 
   const printNfList = () => {
     const sortedEntries = [...nfEntries].sort((a, b) => 
-      new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+      parseLocalDate(a.entryDate).getTime() - parseLocalDate(b.entryDate).getTime()
     );
     
     const printWindow = window.open('', '', 'width=800,height=600');
@@ -450,7 +460,7 @@ export default function IndividualControl() {
                 </div>
                 <div style="text-align: right;">
                   <div class="total">${formatCurrency(totalNf)}</div>
-                  <div class="date">${new Date(entry.entryDate).toLocaleDateString('pt-BR')}</div>
+                  <div class="date">${parseLocalDate(entry.entryDate).toLocaleDateString('pt-BR')}</div>
                 </div>
               </div>
             </div>
@@ -875,7 +885,7 @@ export default function IndividualControl() {
                   </p>
                 </div>
                 {[...cardEntries].sort((a, b) => 
-                  new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+                  parseLocalDate(a.entryDate).getTime() - parseLocalDate(b.entryDate).getTime()
                 ).map((entry) => {
                   const cardPayments = entry.paymentDetails?.filter(pd => 
                     pd.method === 'cartao_credito' || pd.method === 'cartao_debito'
@@ -921,7 +931,7 @@ export default function IndividualControl() {
                             {formatCurrency(totalCard)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
+                            {parseLocalDate(entry.entryDate).toLocaleDateString('pt-BR')}
                           </p>
                         </div>
                       </div>
@@ -968,7 +978,7 @@ export default function IndividualControl() {
                   </p>
                 </div>
                 {[...nfEntries].sort((a, b) => 
-                  new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+                  parseLocalDate(a.entryDate).getTime() - parseLocalDate(b.entryDate).getTime()
                 ).map((entry) => {
                   const totalNf = entry.paymentDetails?.reduce((sum, pd) => sum + pd.value, 0) || 0;
                   
@@ -1014,7 +1024,7 @@ export default function IndividualControl() {
                             {formatCurrency(totalNf)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
+                            {parseLocalDate(entry.entryDate).toLocaleDateString('pt-BR')}
                           </p>
                         </div>
                       </div>
@@ -1061,7 +1071,7 @@ export default function IndividualControl() {
                   </p>
                 </div>
                 {[...pixEntries].sort((a, b) => 
-                  new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+                  parseLocalDate(a.entryDate).getTime() - parseLocalDate(b.entryDate).getTime()
                 ).map((entry) => {
                   const pixPayments = entry.paymentDetails?.filter(pd => pd.method === 'pix') || [];
                   const totalPix = pixPayments.reduce((sum, pd) => sum + pd.value, 0);
@@ -1097,7 +1107,7 @@ export default function IndividualControl() {
                             {formatCurrency(totalPix)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
+                            {parseLocalDate(entry.entryDate).toLocaleDateString('pt-BR')}
                           </p>
                         </div>
                       </div>
@@ -1144,7 +1154,7 @@ export default function IndividualControl() {
                   </p>
                 </div>
                 {[...moneyEntries].sort((a, b) => 
-                  new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+                  parseLocalDate(a.entryDate).getTime() - parseLocalDate(b.entryDate).getTime()
                 ).map((entry) => {
                   const moneyPayments = entry.paymentDetails?.filter(pd => pd.method === 'dinheiro') || [];
                   const totalMoney = moneyPayments.reduce((sum, pd) => sum + pd.value, 0);
@@ -1180,7 +1190,7 @@ export default function IndividualControl() {
                             {formatCurrency(totalMoney)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(entry.entryDate).toLocaleDateString('pt-BR')}
+                            {parseLocalDate(entry.entryDate).toLocaleDateString('pt-BR')}
                           </p>
                         </div>
                       </div>
