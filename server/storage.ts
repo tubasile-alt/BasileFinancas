@@ -428,12 +428,21 @@ export class MemStorage implements IStorage {
     }));
   }
 
+  private parseLocalDate(dateStr: string): Date {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const [year, month, day] = parts.map(Number);
+      return new Date(year, month - 1, day);
+    }
+    return new Date(dateStr);
+  }
+
   private getMonthlyEntries(year: number, month: number): FinancialEntry[] {
     const entries = Array.from(this.financialEntries.values());
     const paddedMonth = month.toString().padStart(2, '0');
     
     return entries.filter(entry => {
-      const entryDate = new Date(entry.entryDate);
+      const entryDate = this.parseLocalDate(entry.entryDate);
       return entryDate.getFullYear() === year && entryDate.getMonth() + 1 === month;
     });
   }
@@ -997,6 +1006,14 @@ export class MemStorage implements IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  private parseLocalDate(dateStr: string): Date {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const [year, month, day] = parts.map(Number);
+      return new Date(year, month - 1, day);
+    }
+    return new Date(dateStr);
+  }
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user || undefined;
