@@ -5,7 +5,13 @@ import { z } from "zod";
 
 export const paymentDetailSchema = z.object({
   method: z.string(),
-  value: z.number(),
+  value: z.number().refine(
+    (val) => {
+      const rounded = Math.round(val * 100) / 100;
+      return Math.abs(rounded - val) < 0.001;
+    },
+    { message: "Valor deve ter no máximo 2 casas decimais" }
+  ).transform((val) => Math.round(val * 100) / 100),
   installments: z.number().optional(),
 });
 
@@ -30,6 +36,10 @@ export const insertFinancialEntrySchema = createInsertSchema(financialEntries).o
   id: true,
   createdAt: true,
 }).extend({
+  procedureValue: z.union([z.string(), z.number()]).transform((val) => {
+    const num = typeof val === 'string' ? parseFloat(val) : val;
+    return Math.round(num * 100) / 100;
+  }),
   paymentDetails: z.array(paymentDetailSchema).min(1, "Pelo menos um método de pagamento é obrigatório"),
 });
 
