@@ -5,13 +5,7 @@ import { z } from "zod";
 
 export const paymentDetailSchema = z.object({
   method: z.string(),
-  value: z.number().refine(
-    (val) => {
-      const rounded = Math.round(val * 100) / 100;
-      return Math.abs(rounded - val) < 0.001;
-    },
-    { message: "Valor deve ter no máximo 2 casas decimais" }
-  ).transform((val) => Math.round(val * 100) / 100),
+  value: z.number().transform((val) => Math.round(val * 100) / 100),
   installments: z.number().optional(),
 });
 

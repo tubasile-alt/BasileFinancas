@@ -376,7 +376,11 @@ export function FinancialEntryForm({ mode = 'create', editData, onSuccess }: Fin
                           type="number"
                           step="0.01"
                           value={payment.value || ''}
-                          onChange={(e) => updatePaymentDetail(index, 'value', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            const rounded = Math.round(val * 100) / 100;
+                            updatePaymentDetail(index, 'value', rounded);
+                          }}
                           className="h-10 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           placeholder="Digite o valor"
                         />
