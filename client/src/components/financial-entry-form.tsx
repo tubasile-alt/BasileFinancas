@@ -378,6 +378,7 @@ export function FinancialEntryForm({ mode = 'create', editData, onSuccess }: Fin
                           value={payment.value || ''}
                           onChange={(e) => {
                             const val = parseFloat(e.target.value) || 0;
+                            // Round to 2 decimal places to avoid floating point issues
                             const rounded = Math.round(val * 100) / 100;
                             updatePaymentDetail(index, 'value', rounded);
                           }}

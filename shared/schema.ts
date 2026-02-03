@@ -5,7 +5,7 @@ import { z } from "zod";
 
 export const paymentDetailSchema = z.object({
   method: z.string(),
-  value: z.number().transform((val) => Math.round(val * 100) / 100),
+  value: z.number().transform((val) => Number(val.toFixed(2))),
   installments: z.number().optional(),
 });
 
