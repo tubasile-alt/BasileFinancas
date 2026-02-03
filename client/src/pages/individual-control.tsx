@@ -129,9 +129,15 @@ export default function IndividualControl() {
   // Filtrar entradas do médico e mês selecionados
   const entries = allEntries?.filter(e => {
     if (e.doctor !== selectedDoctor) return false;
+    // O banco salva YYYY-MM-DD. parseLocalDate garante que não haja deslocamento de fuso horário.
     const entryDate = parseLocalDate(e.entryDate);
-    return entryDate.getFullYear() === selectedYear && 
-           (entryDate.getMonth() + 1) === selectedMonth;
+    
+    // Verificação exata de ano e mês
+    // Nota: entryDate.getMonth() retorna 0-11, então somamos 1 para comparar com selectedMonth (1-12)
+    const yearMatches = entryDate.getUTCFullYear() === selectedYear || entryDate.getFullYear() === selectedYear;
+    const monthMatches = (entryDate.getUTCMonth() + 1) === selectedMonth || (entryDate.getMonth() + 1) === selectedMonth;
+    
+    return yearMatches && monthMatches;
   }) || [];
 
   // Filtrar entradas com pagamento em cartão (crédito ou débito)
