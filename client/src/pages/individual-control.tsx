@@ -169,6 +169,22 @@ export default function IndividualControl() {
   const pixTotal = calculatePaymentTotal(entries, 'pix');
   const moneyTotal = calculatePaymentTotal(entries, 'dinheiro');
   
+  // Análise por Procedimento
+  const procedureAnalysis = entries.reduce((acc: Record<string, { count: number, total: number }>, entry) => {
+    const procedure = entry.procedure || "Não Informado";
+    const entryTotal = entry.paymentDetails?.reduce((sum, pd) => sum + pd.value, 0) || 0;
+    
+    if (!acc[procedure]) {
+      acc[procedure] = { count: 0, total: 0 };
+    }
+    acc[procedure].count += 1;
+    acc[procedure].total += entryTotal;
+    return acc;
+  }, {});
+
+  const sortedProcedures = Object.entries(procedureAnalysis)
+    .sort((a, b) => b[1].total - a[1].total);
+
   // NF Total é o valor TOTAL das entradas que têm número de NF
   const nfTotal = nfEntries.reduce((total, entry) => {
     const entryTotal = entry.paymentDetails?.reduce((sum, pd) => sum + pd.value, 0) || 0;
@@ -623,6 +639,57 @@ export default function IndividualControl() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingDown className="h-5 w-5 text-primary rotate-180" />
+            Análise por Procedimento
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-3 font-semibold">Procedimento</th>
+                  <th className="text-center py-3 font-semibold">Qtd.</th>
+                  <th className="text-right py-3 font-semibold">Faturamento Total</th>
+                  <th className="text-right py-3 font-semibold">% do Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedProcedures.map(([name, data]) => {
+                  const totalFaturamento = entries.reduce((sum, e) => 
+                    sum + (e.paymentDetails?.reduce((pSum, pd) => pSum + pd.value, 0) || 0), 0
+                  );
+                  const percentage = totalFaturamento > 0 ? (data.total / totalFaturamento) * 100 : 0;
+                  
+                  return (
+                    <tr key={name} className="border-b hover:bg-muted/50 transition-colors">
+                      <td className="py-3 font-medium">{name}</td>
+                      <td className="py-3 text-center">{data.count}</td>
+                      <td className="py-3 text-right font-semibold text-primary">
+                        {formatCurrency(data.total)}
+                      </td>
+                      <td className="py-3 text-right text-muted-foreground">
+                        {percentage.toFixed(1)}%
+                      </td>
+                    </tr>
+                  );
+                })}
+                {sortedProcedures.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-muted-foreground italic">
+                      Nenhum procedimento registrado para este período.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </CardContent>
       </Card>
