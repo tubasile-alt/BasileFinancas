@@ -1886,6 +1886,6 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-// Export memory storage for use when DB is disabled
-// export const storage = new DatabaseStorage();
-export const storage = new MemStorage();
+// Export database storage as it's now available
+export const storage = new DatabaseStorage();
+// export const storage = new MemStorage();
