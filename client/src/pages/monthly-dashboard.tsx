@@ -170,16 +170,40 @@ export default function MonthlyDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <Card className="p-6">
             <div className="flex items-center space-x-3">
-              <Users className="h-8 w-8 text-blue-600" />
-              <div>
-                <div className="text-sm text-muted-foreground uppercase tracking-wide">Total de Atendimentos</div>
-                <div className="text-3xl font-bold text-blue-600 mt-1" data-testid="text-monthly-count">
-                  {isLoadingReport ? "..." : monthlyReport?.count || 0}
+              <DollarSign className="h-8 w-8 text-red-600" />
+              <div className="flex-1">
+                <div className="text-sm text-muted-foreground uppercase tracking-wide">Total a Pagar</div>
+                <div className="space-y-2 mt-3">
+                  {isLoadingDoctor ? (
+                    <div className="text-muted-foreground">Carregando...</div>
+                  ) : (
+                    <>
+                      {doctorReport?.filter(doctor => doctor.doctor !== 'fisioterapia').map((doctor, index) => (
+                        <div key={index} className="flex justify-between items-center py-1">
+                          <div className="text-sm font-medium">
+                            {doctorLabels[doctor.doctor] || doctor.doctor}
+                          </div>
+                          <div className="text-sm font-bold text-red-600">
+                            {formatCurrency(doctor.totalCosts + (doctor.doctor === 'icb-transplante' ? 0 : Math.max(doctor.cardTotal, doctor.nfTotal) * 0.11))}
+                          </div>
+                        </div>
+                      ))}
+                      <div className="border-t pt-2 mt-2">
+                        <div className="flex justify-between items-center font-bold text-base">
+                          <div>TOTAL:</div>
+                          <div className="text-red-700 text-lg">
+                            {formatCurrency(
+                              (doctorReport?.filter(doctor => doctor.doctor !== 'fisioterapia').reduce((sum, doctor) => 
+                                sum + doctor.totalCosts + (doctor.doctor === 'icb-transplante' ? 0 : Math.max(doctor.cardTotal, doctor.nfTotal) * 0.11), 0
+                              ) || 0)
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
-            </div>
-            <div className="text-sm text-muted-foreground mt-3">
-              Procedimentos realizados no mês
             </div>
           </Card>
 
