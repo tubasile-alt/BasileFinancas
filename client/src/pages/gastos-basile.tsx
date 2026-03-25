@@ -276,6 +276,8 @@ export default function GastosBasilePage() {
   // Estados para salvamento de relatórios
   const [saveModalOpen, setSaveModalOpen] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isSyncingSheets, setIsSyncingSheets] = useState<boolean>(false);
+  const [sheetsUrl, setSheetsUrl] = useState<string | null>(null);
 
   // Estados para ações de revisão
   const [reviewState, setReviewState] = useState<ReviewState>({
@@ -1358,6 +1360,36 @@ export default function GastosBasilePage() {
       });
     }
   }, [processedData, toast]);
+
+  // Sync to Google Sheets
+  const handleSyncGoogleSheets = useCallback(async () => {
+    setIsSyncingSheets(true);
+    try {
+      const response = await apiRequest('POST', '/api/google-sheets/sync');
+      const result = await response.json();
+      setSheetsUrl(result.url);
+      toast({
+        title: "Planilha atualizada no Google Drive!",
+        description: `${result.sheetsUpdated} abas sincronizadas. Clique no link para abrir.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao sincronizar com Google Sheets",
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: "destructive"
+      });
+    } finally {
+      setIsSyncingSheets(false);
+    }
+  }, [toast]);
+
+  // Load existing Google Sheets URL on mount
+  useEffect(() => {
+    fetch('/api/google-sheets/status')
+      .then(r => r.json())
+      .then(data => { if (data.url) setSheetsUrl(data.url); })
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
@@ -2482,6 +2514,48 @@ export default function GastosBasilePage() {
                           <Save className="h-4 w-4" />
                           Salvar Relatório
                         </Button>
+                      </div>
+
+                      {/* Google Sheets Sync */}
+                      <div className="border-t pt-4 mt-2">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <Button
+                            onClick={handleSyncGoogleSheets}
+                            disabled={isSyncingSheets}
+                            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700"
+                            data-testid="button-sync-sheets"
+                          >
+                            {isSyncingSheets ? (
+                              <>
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                Sincronizando...
+                              </>
+                            ) : (
+                              <>
+                                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M19.056 0H4.944C2.215 0 0 2.215 0 4.944v14.112C0 21.785 2.215 24 4.944 24h14.112C21.785 24 24 21.785 24 19.056V4.944C24 2.215 21.785 0 19.056 0zM6 18.001H4.5V9h1.5v9.001zm7.5 0H12V9h1.5v9.001zm-3.75 0h-1.5V9h1.5v9.001zm7.5 0H15.75V9h1.5v9.001zM20 7H4V5.5h16V7z"/>
+                                </svg>
+                                Sincronizar com Google Drive
+                              </>
+                            )}
+                          </Button>
+                          {sheetsUrl && (
+                            <a
+                              href={sheetsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 text-sm text-emerald-600 hover:text-emerald-700 font-medium underline"
+                            >
+                              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19.056 0H4.944C2.215 0 0 2.215 0 4.944v14.112C0 21.785 2.215 24 4.944 24h14.112C21.785 24 24 21.785 24 19.056V4.944C24 2.215 21.785 0 19.056 0zM6 18.001H4.5V9h1.5v9.001zm7.5 0H12V9h1.5v9.001zm-3.75 0h-1.5V9h1.5v9.001zm7.5 0H15.75V9h1.5v9.001zM20 7H4V5.5h16V7z"/>
+                              </svg>
+                              Abrir Planilha no Google Drive
+                            </a>
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            Cria ou atualiza automaticamente todas as abas mensais e o comparativo
+                          </span>
+                        </div>
                       </div>
 
                       {exportLinks.length > 0 && (

@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertFinancialEntrySchema, insertBankTransactionPersistentSchema, insertManualExpenseSchema, insertLearnedClassificationSchema, annualSpendQuerySchema, insertSavedMonthlyReportSchema, insertEmployeeSchema, insertPatientSchema, insertPatientEvolutionSchema } from "@shared/schema";
 import { z } from "zod";
+import { syncToGoogleSheets, getSpreadsheetUrl } from "./googleSheetsSync";
 
 // Default employees to load on startup
 const DEFAULT_EMPLOYEES = [
@@ -889,6 +890,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting evolution:", error);
       res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // GOOGLE SHEETS SYNC ROUTES
+  // Get current spreadsheet URL (if exists)
+  app.get("/api/google-sheets/status", async (req, res) => {
+    try {
+      const url = getSpreadsheetUrl();
+      res.json({ url, connected: !!url });
+    } catch (error) {
+      console.error("Error getting Google Sheets status:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Trigger sync to Google Sheets
+  app.post("/api/google-sheets/sync", async (req, res) => {
+    try {
+      const result = await syncToGoogleSheets();
+      res.json(result);
+    } catch (error) {
+      console.error("Error syncing to Google Sheets:", error);
+      res.status(500).json({ message: String(error) });
     }
   });
 
