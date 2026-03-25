@@ -891,8 +891,8 @@ export class MemStorage implements IStorage {
       );
     }
     return patientList.sort((a, b) => {
-      const dateA = typeof b.createdAt === 'string' ? new Date(b.createdAt) : b.createdAt;
-      const dateB = typeof a.createdAt === 'string' ? new Date(a.createdAt) : a.createdAt;
+      const dateA = b.createdAt ? (typeof b.createdAt === 'string' ? new Date(b.createdAt) : b.createdAt) : new Date(0);
+      const dateB = a.createdAt ? (typeof a.createdAt === 'string' ? new Date(a.createdAt) : a.createdAt) : new Date(0);
       return dateA.getTime() - dateB.getTime();
     });
   }
