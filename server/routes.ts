@@ -273,6 +273,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Import bank transactions in batch with deduplication (idempotent by month/content)
+  app.post("/api/bank-transactions/import", async (req, res) => {
+    try {
+      const validatedData = z.array(insertBankTransactionPersistentSchema).parse(req.body);
+
+      if (validatedData.length === 0) {
+        return res.json({
+          inserted: 0,
+          skipped: 0,
+          totalReceived: 0,
+          insertedTransactions: [],
+        });
+      }
+
+      // Busca transações existentes no range mínimo/máximo do lote para deduplicação
+      const sortedDates = validatedData
+        .map(t => t.dateISO)
+        .sort((a, b) => a.localeCompare(b));
+      const startDate = sortedDates[0];
+      const endDate = sortedDates[sortedDates.length - 1];
+      const existingInRange = await storage.getBankTransactions(startDate, endDate);
+
+      const buildSignature = (t: {
+        dateISO: string;
+        historico: string;
+        documento?: string | null;
+        valor: string | number;
+      }) => {
+        const historicoNorm = t.historico.trim().toUpperCase();
+        const documentoNorm = (t.documento || "").trim().toUpperCase();
+        const valorNorm = Number(t.valor).toFixed(2);
+        return `${t.dateISO}|${historicoNorm}|${documentoNorm}|${valorNorm}`;
+      };
+
+      const existingSignatures = new Set(
+        existingInRange.map(t => buildSignature(t))
+      );
+      const batchSignatures = new Set<string>();
+
+      const toInsert = validatedData.filter((transaction) => {
+        const signature = buildSignature(transaction);
+
+        // Evita duplicação já existente no banco
+        if (existingSignatures.has(signature)) {
+          return false;
+        }
+
+        // Evita duplicação dentro do mesmo upload
+        if (batchSignatures.has(signature)) {
+          return false;
+        }
+
+        batchSignatures.add(signature);
+        return true;
+      });
+
+      const insertedTransactions = [];
+      for (const transaction of toInsert) {
+        const created = await storage.createBankTransaction(transaction);
+        insertedTransactions.push(created);
+      }
+
+      res.json({
+        inserted: insertedTransactions.length,
+        skipped: validatedData.length - insertedTransactions.length,
+        totalReceived: validatedData.length,
+        insertedTransactions,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Validation error", errors: error.errors });
+      } else {
+        console.error("Error importing bank transactions:", error);
+        res.status(500).json({ message: "Internal server error" });
+      }
+    }
+  });
+
   // Get bank transactions with optional filters
   app.get("/api/bank-transactions", async (req, res) => {
     try {
