@@ -2,6 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertFinancialEntrySchema } from "@shared/schema";
 import type { InsertFinancialEntry, FinancialEntry } from "@shared/schema";
+import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -22,20 +23,22 @@ interface FinancialEntryFormProps {
   onSuccess?: () => void;
 }
 
+type FinancialEntryFormValues = z.input<typeof insertFinancialEntrySchema>;
+
 export function FinancialEntryForm({ mode = 'create', editData, onSuccess }: FinancialEntryFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedDoctor, setSelectedDoctor] = useState<string>("");
   const [paymentDetails, setPaymentDetails] = useState<PaymentDetail[]>([{ method: '', value: 0, installments: 1 }]);
 
-  const form = useForm<InsertFinancialEntry>({
+  const form = useForm<FinancialEntryFormValues>({
     resolver: zodResolver(insertFinancialEntrySchema),
     defaultValues: mode === 'edit' && editData ? {
       patientName: editData.patientName || "",
       patientCode: editData.patientCode || "",
       doctor: editData.doctor || "",
       procedure: editData.procedure || "",
-      procedureValue: editData.procedureValue || "0",
+      procedureValue: String(editData.procedureValue ?? "0"),
       paymentDetails: editData.paymentDetails || [{ method: '', value: 0, installments: 1 }],
       invoiceNumber: editData.invoiceNumber || "",
       observations: editData.observations || "",
@@ -67,7 +70,7 @@ export function FinancialEntryForm({ mode = 'create', editData, onSuccess }: Fin
         patientCode: editData.patientCode || "",
         doctor: editData.doctor || "",
         procedure: editData.procedure || "",
-        procedureValue: editData.procedureValue || "0",
+        procedureValue: String(editData.procedureValue ?? "0"),
         paymentDetails: editData.paymentDetails || [{ method: '', value: 0, installments: 1 }],
         invoiceNumber: editData.invoiceNumber || "",
         observations: editData.observations || "",
@@ -193,9 +196,10 @@ export function FinancialEntryForm({ mode = 'create', editData, onSuccess }: Fin
     }
   };
 
-  const onSubmit = (data: InsertFinancialEntry) => {
-    const submitData = {
-      ...data,
+  const onSubmit = (data: FinancialEntryFormValues) => {
+    const parsed = insertFinancialEntrySchema.parse(data);
+    const submitData: InsertFinancialEntry = {
+      ...parsed,
       paymentDetails: paymentDetails
     };
     saveEntryMutation.mutate(submitData);

@@ -532,6 +532,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 1. Tentar carregar de saved monthly reports primeiro
       const reports = await storage.getSavedMonthlyReports();
       let hasData = false;
+      const monthsWithSavedData = new Set<number>();
       
       reports.forEach((report: any) => {
         if (report.ano !== year) return;
@@ -539,6 +540,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const mes = report.mes;
         if (!monthData[mes]) return;
+        monthsWithSavedData.add(mes);
         
         try {
           const transactions = Array.isArray(report.transactionsData) ? report.transactionsData : 
@@ -550,7 +552,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const categoryData = Array.isArray(report.categoryReportData) ? report.categoryReportData :
                               (typeof report.categoryReportData === 'string' ? JSON.parse(report.categoryReportData) : []);
           
-          monthData[mes].receita = Math.abs(parseFloat(summary.receitasRealizadas?.toString() || "0"));
+          monthData[mes].receita = Math.abs(parseFloat(
+            summary.entradasReais?.toString() ??
+            summary.receitasRealizadas?.toString() ??
+            "0"
+          ));
           monthData[mes].gasto = Math.abs(parseFloat(summary.saidasReais?.toString() || "0"));
           
           const impostos = categoryData.filter((c: any) => 
@@ -572,8 +578,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
       
-      // 2. Se não houver dados salvos, usar bank_transactions
-      if (!hasData) {
+      // 2. Usar bank_transactions para preencher meses sem relatório salvo
+      if (!hasData || monthsWithSavedData.size < 12) {
         const bankTransactions = await storage.getBankTransactions();
         
         bankTransactions.forEach((t: any) => {
@@ -581,6 +587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           const mes = parseInt(t.mes?.toString() || "0");
           if (mes < 1 || mes > 12 || !monthData[mes]) return;
+          if (monthsWithSavedData.has(mes)) return;
           
           const valor = Math.abs(parseFloat(t.valor?.toString() || "0"));
           const categoria = (t.categoria?.toString() || "").toLowerCase();

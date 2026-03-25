@@ -27,7 +27,7 @@ interface FinancialEntry {
   patientName: string;
   doctor: string;
   procedure: string;
-  procedureValue: number;
+  procedureValue: string | number;
   paymentDetails: Array<{
     method: string;
     value: number;
