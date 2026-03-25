@@ -10,7 +10,7 @@
  * - Exportação padronizada
  */
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -220,6 +220,12 @@ interface ReviewState {
   selectedCategory: string;
 }
 
+interface CompiledCategoryRow {
+  categoria: string;
+  monthValues: Record<string, number>;
+  total: number;
+}
+
 // Schema para confirmação de reclassificação
 const reviewActionSchema = z.object({
   categoria: z.string().min(1, "Categoria é obrigatória"),
@@ -279,6 +285,59 @@ export default function GastosBasilePage() {
     pendingAction: null,
     selectedCategory: ''
   });
+
+  // Prévia compilada por categoria e mês (antes de salvar no banco)
+  const compiledPreview = useMemo(() => {
+    if (!processedData?.transactions?.length) return null;
+
+    const validTransactions = processedData.transactions.filter(t =>
+      t.valor < 0 && !t.categoria.includes('IGNORAR')
+    );
+
+    const monthKeys = Array.from(
+      new Set(validTransactions.map(t => t.dateISO.slice(0, 7)))
+    ).sort((a, b) => a.localeCompare(b));
+
+    const categoryMap = new Map<string, Record<string, number>>();
+
+    for (const transaction of validTransactions) {
+      const monthKey = transaction.dateISO.slice(0, 7);
+      const currentCategory = categoryMap.get(transaction.categoria) || {};
+      const currentMonthValue = currentCategory[monthKey] || 0;
+
+      // Usa valor absoluto para prévia de gastos por categoria
+      currentCategory[monthKey] = currentMonthValue + Math.abs(transaction.valor);
+      categoryMap.set(transaction.categoria, currentCategory);
+    }
+
+    const rows: CompiledCategoryRow[] = Array.from(categoryMap.entries())
+      .map(([categoria, monthValues]) => {
+        const total = monthKeys.reduce((sum, month) => sum + (monthValues[month] || 0), 0);
+        return { categoria, monthValues, total };
+      })
+      .sort((a, b) => b.total - a.total);
+
+    const monthTotals: Record<string, number> = {};
+    monthKeys.forEach(month => {
+      monthTotals[month] = rows.reduce((sum, row) => sum + (row.monthValues[month] || 0), 0);
+    });
+
+    const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
+
+    const monthLabel = (yearMonth: string) => {
+      const [year, month] = yearMonth.split('-');
+      const monthDate = new Date(Number(year), Number(month) - 1, 1);
+      return monthDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    };
+
+    return {
+      monthKeys,
+      rows,
+      monthTotals,
+      grandTotal,
+      monthLabel
+    };
+  }, [processedData]);
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -516,17 +575,16 @@ export default function GastosBasilePage() {
         source: 'bank_import'
       }));
 
-      // Salvar todas as transações
-      const savePromises = bankTransactionsToSave.map(transaction => 
-        apiRequest('POST', '/api/bank-transactions', transaction)
-      );
-      
-      return await Promise.all(savePromises);
+      // Salva em lote com deduplicação no servidor (idempotente)
+      const response = await apiRequest('POST', '/api/bank-transactions/import', bankTransactionsToSave);
+      return await response.json();
     },
-    onSuccess: () => {
+    onSuccess: (result: any) => {
+      const inserted = Number(result?.inserted || 0);
+      const skipped = Number(result?.skipped || 0);
       toast({
         title: "Extrato salvo com sucesso!",
-        description: `${processedData?.transactions.length || 0} transações salvas no banco de dados`,
+        description: `${inserted} novas transações inseridas${skipped > 0 ? `, ${skipped} já existentes (não duplicadas)` : ''}.`,
       });
       queryClient.invalidateQueries({ queryKey: ['/api/bank-transactions'] });
     },
@@ -1554,6 +1612,64 @@ export default function GastosBasilePage() {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Resumo Operacional */}
+                {compiledPreview && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-blue-600" />
+                        Prévia Compilada por Categoria e Mês (antes de salvar)
+                      </CardTitle>
+                      <CardDescription>
+                        Confira os dados refinados e compilados abaixo. Esta prévia é gerada imediatamente após o processamento e antes de persistir no banco.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="rounded-md border overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="min-w-[260px]">Categoria</TableHead>
+                              {compiledPreview.monthKeys.map((month) => (
+                                <TableHead key={month} className="text-right min-w-[160px]">
+                                  {compiledPreview.monthLabel(month)}
+                                </TableHead>
+                              ))}
+                              <TableHead className="text-right min-w-[160px]">Total</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {compiledPreview.rows.map((row) => (
+                              <TableRow key={row.categoria}>
+                                <TableCell className="font-medium">{row.categoria}</TableCell>
+                                {compiledPreview.monthKeys.map((month) => (
+                                  <TableCell key={`${row.categoria}-${month}`} className="text-right text-red-600">
+                                    {row.monthValues[month] ? formatCurrencyBR(row.monthValues[month]) : "—"}
+                                  </TableCell>
+                                ))}
+                                <TableCell className="text-right font-semibold text-red-600">
+                                  {formatCurrencyBR(row.total)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            <TableRow className="bg-muted/40">
+                              <TableCell className="font-bold">TOTAL GERAL</TableCell>
+                              {compiledPreview.monthKeys.map((month) => (
+                                <TableCell key={`total-${month}`} className="text-right font-bold">
+                                  {formatCurrencyBR(compiledPreview.monthTotals[month] || 0)}
+                                </TableCell>
+                              ))}
+                              <TableCell className="text-right font-bold">
+                                {formatCurrencyBR(compiledPreview.grandTotal)}
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Resumo Operacional */}
                 <Card>
