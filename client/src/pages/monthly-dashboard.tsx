@@ -211,7 +211,7 @@ export default function MonthlyDashboard() {
             <div className="flex items-center space-x-3">
               <DollarSign className="h-8 w-8 text-green-600" />
               <div className="flex-1">
-                <div className="text-sm text-muted-foreground uppercase tracking-wide">Total a Pagar por Mês</div>
+                <div className="text-sm text-muted-foreground uppercase tracking-wide">Total Pago no Ano de 2026</div>
                 <div className="space-y-1.5 mt-3 max-h-48 overflow-y-auto">
                   {isLoadingAnnual ? (
                     <div className="text-muted-foreground">Carregando...</div>
