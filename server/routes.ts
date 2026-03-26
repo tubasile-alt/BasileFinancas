@@ -1,8 +1,10 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertFinancialEntrySchema, insertBankTransactionPersistentSchema, insertManualExpenseSchema, insertLearnedClassificationSchema, annualSpendQuerySchema, insertSavedMonthlyReportSchema, insertEmployeeSchema, insertPatientSchema, insertPatientEvolutionSchema } from "@shared/schema";
+import { db } from "./db";
+import { insertFinancialEntrySchema, insertBankTransactionPersistentSchema, insertManualExpenseSchema, insertLearnedClassificationSchema, annualSpendQuerySchema, insertSavedMonthlyReportSchema, insertEmployeeSchema, insertPatientSchema, insertPatientEvolutionSchema, bankTransactions } from "@shared/schema";
 import { z } from "zod";
+import { eq } from "drizzle-orm";
 import { syncToGoogleSheets, getSpreadsheetUrl } from "./googleSheetsSync";
 
 // Default employees to load on startup
@@ -890,6 +892,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting evolution:", error);
       res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // DELETE 2026 data from bank transactions (Gasto Anual only)
+  app.delete("/api/admin/delete-year-2026", async (req, res) => {
+    try {
+      // Only delete from bank_transactions (which feeds Gasto Anual)
+      // Do NOT delete from financial_entries
+      const deleted = await db
+        .delete(bankTransactions)
+        .where(eq(bankTransactions.ano, 2026));
+      
+      res.json({ 
+        success: true, 
+        message: "Dados de 2026 removidos do Gasto Anual",
+        deletedCount: deleted
+      });
+    } catch (error) {
+      console.error("Error deleting 2026 data:", error);
+      res.status(500).json({ message: String(error) });
     }
   });
 
