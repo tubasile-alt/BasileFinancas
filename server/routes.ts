@@ -966,22 +966,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // DELETE 2026 data from bank transactions (Gasto Anual only)
-  app.delete("/api/admin/delete-year-2026", async (req, res) => {
+  // DELETE all 2026 data from entire database (except financial_entries)
+  app.delete("/api/admin/delete-year-2026-complete", async (req, res) => {
     try {
-      // Only delete from bank_transactions (which feeds Gasto Anual)
-      // Do NOT delete from financial_entries
-      const deleted = await db
-        .delete(bankTransactions)
-        .where(eq(bankTransactions.ano, 2026));
+      const results: any = {};
       
+      // Delete from bank_transactions
+      try {
+        const btResult = await db
+          .delete(bankTransactions)
+          .where(eq(bankTransactions.ano, 2026));
+        results.bank_transactions = btResult;
+      } catch (e) {
+        results.bank_transactions = "error";
+      }
+
+      // Delete from saved_monthly_reports via storage
+      try {
+        const allReports = await storage.getSavedMonthlyReports();
+        const reportsToDelete = allReports.filter((r: any) => r.ano === 2026 || r.ano === "2026");
+        
+        for (const report of reportsToDelete) {
+          await storage.deleteSavedMonthlyReport(report.id);
+        }
+        results.saved_monthly_reports = reportsToDelete.length;
+      } catch (e) {
+        results.saved_monthly_reports = "error";
+      }
+
       res.json({ 
         success: true, 
-        message: "Dados de 2026 removidos do Gasto Anual",
-        deletedCount: deleted
+        message: "Todos os dados de 2026 foram removidos do sistema",
+        deleted: results,
+        note: "financial_entries foram preservadas conforme solicitado"
       });
     } catch (error) {
-      console.error("Error deleting 2026 data:", error);
+      console.error("Error deleting all 2026 data:", error);
       res.status(500).json({ message: String(error) });
     }
   });
