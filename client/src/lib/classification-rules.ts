@@ -10,6 +10,19 @@ export interface ClassificationResult {
   ehOperacional: boolean;
 }
 
+export const MACRO_CATEGORIES = {
+  RECEITA: "Receita",
+  BOLETOS_FORNECEDORES: "Despesa – Boletos/Fornecedores",
+  CONTAS_FIXAS: "Despesa – Contas Fixas",
+  FOLHA: "Despesa – Folha de Pagamento",
+  IMPOSTOS: "Despesa – Impostos",
+  PIX_ENVIADO: "PIX Enviado",
+  MOVIMENTACAO_NAO_OPERACIONAL: "Movimentação Não Operacional",
+  NAO_CLASSIFICADO: "Não Classificado"
+} as const;
+
+export type MacroCategory = typeof MACRO_CATEGORIES[keyof typeof MACRO_CATEGORIES];
+
 /**
  * Interface para resultado completo da classificação avançada
  */
@@ -387,6 +400,26 @@ const SALARY_KEYWORDS = [
   "VALE ALIMENTAÇÃO"
 ];
 
+const FIXED_EXPENSE_KEYWORDS = [
+  "CONTA",
+  "CELULAR",
+  "TELEFONIA",
+  "INTERNET",
+  "ENERGIA",
+  "ÁGUA",
+  "ALUGUEL",
+  "MÁQUINAS CARTÃO",
+  "TARIFA",
+  "MENSALIDADE",
+  "SERVIÇO"
+];
+
+const BOLETO_SUPPLIER_KEYWORDS = [
+  "BOLETO",
+  "DUPLICATA",
+  "FORNECEDOR"
+];
+
 /**
  * Termos que indicam empresa (para exclusão na heurística PIX)
  */
@@ -411,6 +444,8 @@ const COMPANY_TERMS = [
   "LABORATORIO",
   "LABORATÓRIO"
 ];
+
+const PIX_SENT_KEYWORDS = ["PIX ENVIADO"];
 
 /**
  * Detecta se é uma movimentação financeira interna
@@ -492,6 +527,74 @@ export function detectSalaryByKeyword(historico: string): boolean {
   }
 
   return false;
+}
+
+/**
+ * Função canônica oficial para classificação macro final.
+ * Sempre considera o sinal do valor.
+ */
+export function classifyTransactionCanonical(
+  historico: string,
+  valor: number
+): { categoria: MacroCategory; ehOperacional: boolean } {
+  const historicoUpper = historico.toUpperCase();
+
+  const isNonOperational =
+    shouldIgnoreTransaction(historicoUpper) || detectFinancialMovement(historicoUpper);
+
+  // Valor positivo: Receita (exceto não operacional)
+  if (valor > 0) {
+    if (isNonOperational) {
+      return { categoria: "Movimentação Não Operacional", ehOperacional: false };
+    }
+    return { categoria: "Receita", ehOperacional: true };
+  }
+
+  // Valor negativo: ordem de prioridade obrigatória
+  if (valor < 0) {
+    if (isNonOperational) {
+      return { categoria: "Movimentação Não Operacional", ehOperacional: false };
+    }
+    if (detectTax(historicoUpper)) {
+      return { categoria: "Despesa – Impostos", ehOperacional: true };
+    }
+    if (detectSalaryByKeyword(historicoUpper)) {
+      return { categoria: "Despesa – Folha de Pagamento", ehOperacional: true };
+    }
+    if (FIXED_EXPENSE_KEYWORDS.some((keyword) => historicoUpper.includes(keyword))) {
+      return { categoria: "Despesa – Contas Fixas", ehOperacional: true };
+    }
+    if (PIX_SENT_KEYWORDS.some((keyword) => historicoUpper.includes(keyword))) {
+      return { categoria: "PIX Enviado", ehOperacional: true };
+    }
+    if (
+      BOLETO_SUPPLIER_KEYWORDS.some((keyword) => historicoUpper.includes(keyword)) ||
+      checkSupplierList(historicoUpper)
+    ) {
+      return { categoria: "Despesa – Boletos/Fornecedores", ehOperacional: true };
+    }
+    return { categoria: "Despesa – Boletos/Fornecedores", ehOperacional: true };
+  }
+
+  // Valor zero: neutro / não classificado
+  if (isNonOperational) {
+    return { categoria: "Movimentação Não Operacional", ehOperacional: false };
+  }
+  return { categoria: "Não Classificado", ehOperacional: true };
+}
+
+function detectFixedExpense(historico: string): boolean {
+  const historicoUpper = historico.toUpperCase();
+  return FIXED_EXPENSE_KEYWORDS.some(keyword => historicoUpper.includes(keyword));
+}
+
+function detectPixSent(historico: string): boolean {
+  return historico.toUpperCase().includes("PIX ENVIADO");
+}
+
+function detectBoletoOrSupplier(historico: string): boolean {
+  const historicoUpper = historico.toUpperCase();
+  return BOLETO_SUPPLIER_KEYWORDS.some(keyword => historicoUpper.includes(keyword));
 }
 
 /**
@@ -728,39 +831,8 @@ function classifyBasileTransaction(historicoUpper: string): ClassificationResult
  * @returns Objeto com categoria e se é operacional
  */
 export function classifyTransaction(historico: string): ClassificationResult {
-  // Primeira verificação: transações a serem ignoradas
-  if (shouldIgnoreTransaction(historico)) {
-    return {
-      categoria: "IGNORAR – Movimentações CONTAMAX/Automáticas",
-      ehOperacional: false
-    };
-  }
-
-  // Converte para uppercase para comparação case-insensitive
-  const historicoUpper = historico.toUpperCase();
-
-  // Regras refinadas (Basile) antes das regras genéricas
-  const basileClassification = classifyBasileTransaction(historicoUpper);
-  if (basileClassification) return basileClassification;
-
-  // Verifica cada regra em ordem de precedência (pula a regra 0 - IGNORAR)
-  for (let i = 1; i < CLASSIFICATION_RULES.length; i++) {
-    const rule = CLASSIFICATION_RULES[i];
-    for (const keyword of rule.keywords) {
-      if (historicoUpper.includes(keyword)) {
-        return {
-          categoria: rule.categoria,
-          ehOperacional: rule.ehOperacional
-        };
-      }
-    }
-  }
-
-  // Caso padrão: Outros
-  return {
-    categoria: "Outros",
-    ehOperacional: true
-  };
+  // Compatibilidade legada: sem valor, aplica fallback neutro
+  return classifyTransactionCanonical(historico, 0);
 }
 
 /**
@@ -798,17 +870,19 @@ export function classifyTransactionAdvanced(
   fornecedores?: string[],
   learnedClassifications?: LearnedClassification[]
 ): AdvancedClassificationResult {
+  const canonical = classifyTransactionCanonical(historico, valor);
+
   // Primeira verificação: transações a serem ignoradas
   if (shouldIgnoreTransaction(historico)) {
     return {
-      categoria: "IGNORAR – Movimentações CONTAMAX/Automáticas",
+      categoria: canonical.categoria,
       ehOperacional: false,
       ehMovtoFinanceiro: false,
       ehImposto: false,
       ehSalarioPalavra: false,
       ehSalarioHeuristico: false,
       salarioConfirmado: false,
-      classificacaoFinal: "IGNORAR – Movimentações CONTAMAX/Automáticas",
+      classificacaoFinal: canonical.categoria,
       needsReview: false,
       confidenceScore: 1.0
     };
@@ -824,17 +898,15 @@ export function classifyTransactionAdvanced(
     );
     
     if (exactMatch) {
-      // Aplica classificação aprendida
-      const ehOperacional = exactMatch.ehOperacional === 1;
       return {
-        categoria: exactMatch.categoria,
-        ehOperacional: ehOperacional,
+        categoria: canonical.categoria,
+        ehOperacional: canonical.ehOperacional,
         ehMovtoFinanceiro: false, // Será definido baseado na categoria
-        ehImposto: exactMatch.categoria.includes("Impostos"),
-        ehSalarioPalavra: exactMatch.classificacaoFinal.includes("Salário"),
+        ehImposto: canonical.categoria === "Despesa – Impostos",
+        ehSalarioPalavra: canonical.categoria === "Despesa – Folha de Pagamento",
         ehSalarioHeuristico: false,
-        salarioConfirmado: exactMatch.classificacaoFinal.includes("Salário"),
-        classificacaoFinal: `${exactMatch.classificacaoFinal} (aprendido)`,
+        salarioConfirmado: canonical.categoria === "Despesa – Folha de Pagamento",
+        classificacaoFinal: canonical.categoria,
         needsReview: false, // Aprendizado tem alta confiança
         confidenceScore: 0.98 // Muito alta confiança para aprendizado
       };
@@ -844,27 +916,9 @@ export function classifyTransactionAdvanced(
     // Por enquanto apenas match exato
   }
 
-  // Executa todas as detecções
-  const basileClassification = classifyBasileTransaction(historico.toUpperCase());
-  if (basileClassification) {
-    return {
-      categoria: basileClassification.categoria,
-      ehOperacional: basileClassification.ehOperacional,
-      ehMovtoFinanceiro: !basileClassification.ehOperacional,
-      ehImposto: basileClassification.categoria.includes("Impostos"),
-      ehSalarioPalavra: basileClassification.categoria.includes("Folha de Pagamento"),
-      ehSalarioHeuristico: false,
-      salarioConfirmado: basileClassification.categoria.includes("Folha de Pagamento"),
-      classificacaoFinal: basileClassification.categoria,
-      needsReview: basileClassification.categoria === "PIX Enviado – Outros Fornecedores" || basileClassification.categoria === "Outros",
-      reviewReason: basileClassification.categoria === "PIX Enviado – Outros Fornecedores" ? "PIX enviado sem identificação detalhada do fornecedor" : undefined,
-      confidenceScore: 0.96
-    };
-  }
-
   const ehMovtoFinanceiro = detectFinancialMovement(historico);
-  const ehImposto = detectTax(historico);
-  const ehSalarioPalavra = detectSalaryByKeyword(historico);
+  const ehImposto = canonical.categoria === "Despesa – Impostos";
+  const ehSalarioPalavra = canonical.categoria === "Despesa – Folha de Pagamento";
   const ehSalarioHeuristico = detectSalaryByHeuristic(historico, valor, data);
   
   // Verifica dicionários
@@ -874,90 +928,32 @@ export function classifyTransactionAdvanced(
   const boletoResult = detectBoletoSupplier(historico);
 
   // Inicia resultado base
-  let categoria = "Outros";
-  let ehOperacional = true;
-  let classificacaoFinal = "Outros";
+  let categoria: string = canonical.categoria;
+  let ehOperacional = canonical.ehOperacional;
+  let classificacaoFinal: string = canonical.categoria;
   let needsReview = false;
-  let salarioConfirmado = false;
+  let salarioConfirmado = canonical.categoria === "Despesa – Folha de Pagamento";
   let subcategoriaBoleto: string | undefined;
 
   // LÓGICA DE PRIORIDADE
 
-  // 1. PRIMEIRA PRIORIDADE: Movimentação Financeira
-  if (ehMovtoFinanceiro) {
-    categoria = "Movimentação Financeira – não operacional";
-    ehOperacional = false;
-    classificacaoFinal = "Movimentação Financeira (não operacional)";
-  }
-  
-  // 2. SEGUNDA PRIORIDADE: Impostos
-  else if (ehImposto) {
-    categoria = "Despesa – Impostos";
-    ehOperacional = true;
-    classificacaoFinal = "Imposto";
-  }
-  
-  // 3. TERCEIRA PRIORIDADE: Salários por palavra-chave
-  else if (ehSalarioPalavra) {
-    categoria = "Despesa – Folha de Pagamento";
-    ehOperacional = true;
-    classificacaoFinal = "Salário (confirmado)";
-    salarioConfirmado = true;
-  }
-  
-  // 4. QUARTA PRIORIDADE: Funcionários na whitelist
-  else if (ehFuncionario) {
-    categoria = "Despesa – Folha de Pagamento";
-    ehOperacional = true;
-    classificacaoFinal = "Salário (confirmado)";
-    salarioConfirmado = true;
-  }
-  
-  // 5. QUINTA PRIORIDADE: Salários por heurística PIX
-  else if (ehSalarioHeuristico) {
-    categoria = "Despesa – Folha de Pagamento";
-    ehOperacional = true;
-    classificacaoFinal = "Salário (heurístico)";
-    needsReview = true; // Sinaliza que precisa revisão manual
-  }
-  
-  // 6. SEXTA PRIORIDADE: Day Hospital
-  else if (ehDayHospital) {
-    categoria = "Despesa Operacional – Day Hospital";
-    ehOperacional = true;
-    classificacaoFinal = "Day Hospital (confirmado)";
+  // Camada advanced atua apenas como auditoria/sugestão.
+  if (ehSalarioHeuristico && categoria !== "Despesa – Folha de Pagamento") {
+    needsReview = true;
+    classificacaoFinal = `${canonical.categoria} (auditoria: possível salário)`;
   }
 
-  // 7. SÉTIMA PRIORIDADE: Fornecedores de Boleto com subcategoria
-  else if (boletoResult.found) {
-    categoria = "Despesa – Boletos/Fornecedores";
-    ehOperacional = true;
+  if (ehFornecedor && categoria === "Despesa – Boletos/Fornecedores") {
+    classificacaoFinal = `${canonical.categoria} (auditoria: fornecedor confirmado)`;
+  }
+
+  if (ehDayHospital && categoria === "Despesa – Boletos/Fornecedores") {
+    classificacaoFinal = `${canonical.categoria} (auditoria: day hospital)`;
+  }
+
+  if (boletoResult.found) {
     subcategoriaBoleto = boletoResult.subcategoria;
-    classificacaoFinal = `Boleto – ${boletoResult.subcategoria} (confirmado)`;
-  }
-
-  // 8. OUTRAS CLASSIFICAÇÕES: Usa regras tradicionais
-  else {
-    const baseClassification = classifyTransaction(historico);
-    categoria = baseClassification.categoria;
-    ehOperacional = baseClassification.ehOperacional;
-    
-    // Define classificação final específica
-    if (ehFornecedor) {
-      classificacaoFinal = "Fornecedor (confirmado)";
-    } else if (categoria === "Receita – PIX/Outros Recebimentos") {
-      classificacaoFinal = "Receita";
-    } else if (categoria === "Despesa – Boletos/Fornecedores") {
-      classificacaoFinal = "Fornecedor";
-    } else if (categoria === "Despesa – Contas Fixas") {
-      classificacaoFinal = "Contas Fixas";
-    } else if (categoria === "Despesa – PIX Enviado") {
-      classificacaoFinal = "PIX Enviado";
-      needsReview = true; // PIX sem classificação específica pode precisar revisão
-    } else {
-      classificacaoFinal = "Outros";
-      needsReview = true; // Transações não classificadas precisam revisão
-    }
+    classificacaoFinal = `${canonical.categoria} (auditoria: ${boletoResult.subcategoria})`;
   }
 
   // Calcula motivo da revisão baseado na lógica aplicada
@@ -965,9 +961,9 @@ export function classifyTransactionAdvanced(
   if (needsReview) {
     if (ehSalarioHeuristico) {
       reviewReason = "PIX para pessoa física em período de pagamento - verificar se é salário";
-    } else if (categoria === "Despesa – PIX Enviado") {
+    } else if (categoria === "PIX Enviado") {
       reviewReason = "PIX enviado sem classificação específica";
-    } else if (categoria === "Outros") {
+    } else if (categoria === "Não Classificado") {
       reviewReason = "Transação não classificada automaticamente";
     } else {
       reviewReason = "Transação marcada para revisão manual";
@@ -977,7 +973,7 @@ export function classifyTransactionAdvanced(
   // Calcula score de confiança baseado no tipo de classificação
   let confidenceScore = 1.0; // Default: máxima confiança
   
-  if (ehMovtoFinanceiro) {
+  if (categoria === "Movimentação Não Operacional" || ehMovtoFinanceiro) {
     confidenceScore = 0.95; // Alta confiança - padrões bem definidos
   } else if (ehImposto) {
     confidenceScore = 0.95; // Alta confiança - palavras-chave específicas
@@ -991,9 +987,9 @@ export function classifyTransactionAdvanced(
     confidenceScore = 0.90; // Boa confiança - fornecedor de day hospital confirmado
   } else if (ehFornecedor) {
     confidenceScore = 0.88; // Boa confiança - whitelist fornecedores
-  } else if (categoria === "Receita – PIX/Outros Recebimentos") {
+  } else if (categoria === "Receita") {
     confidenceScore = 0.85; // Boa confiança - receitas geralmente bem identificadas
-  } else if (categoria === "Outros") {
+  } else if (categoria === "Não Classificado") {
     confidenceScore = 0.60; // Baixa confiança - não classificado
   } else {
     confidenceScore = 0.80; // Confiança padrão para outras classificações
@@ -1047,34 +1043,7 @@ export function addSupplierKeywords(newKeywords: string[]): void {
  * Obtém todas as categorias possíveis
  */
 export function getAllCategories(): string[] {
-  const categories = CLASSIFICATION_RULES.map(rule => rule.categoria);
-  categories.push(
-    "Receitas",
-    "Folha de Pagamento / RH",
-    "Serviço de Anestesia",
-    "Insumos / Materiais Médicos",
-    "Impostos / Tributos",
-    "Tarifas / Encargos Bancários",
-    "Financiamento / Empréstimo",
-    "Contabilidade / Assessoria",
-    "Serviços de Lavanderia",
-    "Manutenção",
-    "Tecnologia / Sistemas",
-    "Telefonia / Internet",
-    "Energia Elétrica",
-    "Água / Esgoto",
-    "Seguros",
-    "Cartão Corporativo (fatura)",
-    "Marketing / Gráfica",
-    "Alimentação / Copa",
-    "Sindicato / Encargos Trabalhistas",
-    "Transporte / Logística",
-    "Transferências Internas",
-    "Rendimentos (CDB/Conta)",
-    "PIX Enviado – Outros Fornecedores"
-  );
-  categories.push("Outros"); // Adiciona a categoria padrão
-  return Array.from(new Set(categories)); // Remove duplicatas
+  return Object.values(MACRO_CATEGORIES);
 }
 
 /**

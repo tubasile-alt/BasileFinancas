@@ -14,7 +14,7 @@ import {
   type BankTransaction 
 } from '@shared/schema';
 import { type RawTransaction } from './file-parsers';
-import { classifyTransaction } from './classification-rules';
+import { classifyTransactionCanonical } from './classification-rules';
 import { getISOWeek, parseISO, format, isValid } from 'date-fns';
 
 /**
@@ -314,7 +314,7 @@ function bankToClassifiedTransaction(bank: BankTransaction): ClassifiedTransacti
 
   // Classifica a transação
   const { normalized: historico, forClassification } = normalizeHistory(bank.historico);
-  const classification = classifyTransaction(forClassification);
+  const classification = classifyTransactionCanonical(forClassification, bank.valor);
 
   return {
     ...bank,
