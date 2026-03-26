@@ -209,16 +209,40 @@ export default function MonthlyDashboard() {
 
           <Card className="p-6">
             <div className="flex items-center space-x-3">
-              <CreditCard className="h-8 w-8 text-purple-600" />
-              <div>
-                <div className="text-sm text-muted-foreground uppercase tracking-wide">Receita Cartão Crédito</div>
-                <div className="text-3xl font-bold text-purple-600 mt-1" data-testid="text-monthly-credit-card">
-                  {isLoadingReport ? "..." : formatCurrency(monthlyReport?.creditCardTotal || 0)}
+              <DollarSign className="h-8 w-8 text-green-600" />
+              <div className="flex-1">
+                <div className="text-sm text-muted-foreground uppercase tracking-wide">Acumulado Total a Pagar (Mês)</div>
+                <div className="space-y-2 mt-3">
+                  {isLoadingDoctor ? (
+                    <div className="text-muted-foreground">Carregando...</div>
+                  ) : (
+                    <>
+                      {doctorReport?.filter(doctor => doctor.doctor !== 'fisioterapia').slice(0, 3).map((doctor, index) => (
+                        <div key={index} className="flex justify-between items-center py-0.5">
+                          <div className="text-xs font-medium">
+                            {(doctorLabels[doctor.doctor] || doctor.doctor).split(' ').slice(0, 2).join(' ')}
+                          </div>
+                          <div className="text-xs font-bold text-green-600">
+                            {formatCurrency(doctor.totalCosts + (doctor.doctor === 'icb-transplante' ? 0 : Math.max(doctor.cardTotal, doctor.nfTotal) * 0.11))}
+                          </div>
+                        </div>
+                      ))}
+                      <div className="border-t pt-1.5 mt-1.5">
+                        <div className="flex justify-between items-center font-bold text-sm">
+                          <div>TOTAL:</div>
+                          <div className="text-green-700">
+                            {formatCurrency(
+                              (doctorReport?.filter(doctor => doctor.doctor !== 'fisioterapia').reduce((sum, doctor) => 
+                                sum + doctor.totalCosts + (doctor.doctor === 'icb-transplante' ? 0 : Math.max(doctor.cardTotal, doctor.nfTotal) * 0.11), 0
+                              ) || 0)
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
-            </div>
-            <div className="text-sm text-muted-foreground mt-3">
-              Inclui taxa de 11%
             </div>
           </Card>
         </div>
