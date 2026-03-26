@@ -1549,7 +1549,8 @@ export class DatabaseStorage implements IStorage {
     const isFinancialMovement = (categoria: string) => {
       return categoria.includes('CONTAMAX') || 
              categoria.includes('IGNORAR') ||
-             categoria.includes('Movimentação Financeira – não operacional');
+             categoria.includes('Movimentação Financeira – não operacional') ||
+             categoria.includes('Movimentação Não Operacional');
     };
     
     // Filter operational transactions EXACTLY like upload does

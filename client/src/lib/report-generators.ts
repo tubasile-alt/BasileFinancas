@@ -369,8 +369,9 @@ export function annotateTransactions(
 
     return {
       ...transaction,
-      categoria: advanced.categoria,
-      ehOperacional: advanced.ehOperacional,
+      // Categoria final permanece a persistida/canônica.
+      categoria: transaction.categoria,
+      ehOperacional: transaction.ehOperacional,
       ehMovtoFinanceiro: advanced.ehMovtoFinanceiro,
       ehImposto: advanced.ehImposto,
       ehSalarioPalavra: advanced.ehSalarioPalavra,
@@ -429,12 +430,12 @@ function generateReviewQueue(transactions: AnnotatedTransaction[]): ReviewQueueI
 
     if (transaction.ehSalarioHeuristico && !transaction.salarioConfirmado) {
       motivo = "Possível salário detectado por heurística PIX - confirme se é funcionário";
-    } else if (transaction.categoria === "Despesa – PIX Enviado" && 
+    } else if (transaction.categoria === "PIX Enviado" && 
                !transaction.ehSalarioHeuristico && 
                !transaction.ehImposto && 
                !transaction.ehMovtoFinanceiro) {
       motivo = "PIX enviado sem classificação específica - verificar beneficiário";
-    } else if (transaction.categoria === "Outros") {
+    } else if (transaction.categoria === "Não Classificado") {
       motivo = "Transação não classificada automaticamente - requer análise manual";
     } else {
       motivo = "Transação marcada para revisão pelo sistema de classificação";

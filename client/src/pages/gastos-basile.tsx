@@ -851,8 +851,8 @@ export default function GastosBasilePage() {
     // Para ações que precisam de categoria específica, abrir diálogo
     if (action === 'receita' || action === 'fornecedor' || action === 'salario') {
       let categoria = '';
-      if (action === 'receita') categoria = 'Receitas';
-      else if (action === 'fornecedor') categoria = 'Fornecedores';
+      if (action === 'receita') categoria = 'Receita';
+      else if (action === 'fornecedor') categoria = 'Despesa – Boletos/Fornecedores';
       else if (action === 'salario') categoria = 'Despesa – Folha de Pagamento';
       
       setReviewState(prev => ({
@@ -899,7 +899,7 @@ export default function GastosBasilePage() {
       // Mapear tipo de ação para categoria e classificação final
       const actionToClassification = {
         receita: {
-          categoria: 'Receita – PIX/Outros Recebimentos',
+          categoria: 'Receita',
           classificacaoFinal: 'Receita',
           ehOperacional: 1
         },
@@ -1091,6 +1091,29 @@ export default function GastosBasilePage() {
 
       if (normalizationResult.warnings.length > 0) {
         setWarnings(prev => [...prev, ...normalizationResult.warnings]);
+      }
+
+      // Validações obrigatórias de reconciliação
+      const totalBruto = parseResult.transactions.reduce((sum, t) => sum + Number(t.valor || 0), 0);
+      const totalProcessado = normalizationResult.transactions.reduce((sum, t) => sum + Number(t.valor || 0), 0);
+      const entradasBrutas = parseResult.transactions
+        .filter(t => Number(t.valor || 0) > 0)
+        .reduce((sum, t) => sum + Number(t.valor || 0), 0);
+      const totalReceitaClassificada = normalizationResult.transactions
+        .filter(t => t.categoria === 'Receita')
+        .reduce((sum, t) => sum + Number(t.valor || 0), 0);
+
+      const epsilon = 0.01;
+      if (Math.abs(totalBruto - totalProcessado) > epsilon) {
+        throw new Error(
+          `Falha na reconciliação: total bruto (${formatCurrencyBR(totalBruto)}) difere do total processado (${formatCurrencyBR(totalProcessado)}).`
+        );
+      }
+
+      if (Math.abs(entradasBrutas - totalReceitaClassificada) > epsilon) {
+        throw new Error(
+          `Falha na reconciliação: entradas brutas (${formatCurrencyBR(entradasBrutas)}) diferem da Receita classificada (${formatCurrencyBR(totalReceitaClassificada)}).`
+        );
       }
 
       // Detecta mês/ano predominante se auto-detecção estiver habilitada
@@ -3579,13 +3602,13 @@ export default function GastosBasilePage() {
                           
                           // Define classe de cor baseada na classificação
                           let badgeColor = 'border-gray-400 text-gray-600';
-                          if (advancedClassification.ehMovtoFinanceiro) {
+                          if (transaction.categoria === 'Movimentação Não Operacional') {
                             badgeColor = 'border-gray-400 text-gray-600';
-                          } else if (advancedClassification.ehImposto) {
+                          } else if (transaction.categoria === 'Despesa – Impostos') {
                             badgeColor = 'border-blue-400 text-blue-600';
-                          } else if (advancedClassification.salarioConfirmado) {
+                          } else if (transaction.categoria === 'Despesa – Folha de Pagamento') {
                             badgeColor = 'border-green-400 text-green-600';
-                          } else if (advancedClassification.ehSalarioHeuristico) {
+                          } else if (transaction.categoria === 'PIX Enviado') {
                             badgeColor = 'border-yellow-400 text-yellow-600';
                           }
                           
@@ -3604,11 +3627,11 @@ export default function GastosBasilePage() {
                               </TableCell>
                               <TableCell>
                                 <Badge 
-                                  variant={advancedClassification.needsReview ? "destructive" : "outline"}
+                                  variant={advancedClassification.needsReview ? "outline" : "default"}
                                   className={`text-xs ${badgeColor}`}
                                   data-testid={`classification-badge-${transaction.id}`}
                                 >
-                                  {advancedClassification.classificacaoFinal}
+                                  {transaction.categoria}
                                 </Badge>
                               </TableCell>
                               <TableCell className={`text-right font-medium ${Number(transaction.valor) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
