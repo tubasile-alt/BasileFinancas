@@ -223,7 +223,7 @@ export default function MonthlyDashboard() {
                             {month.label}
                           </div>
                           <div className="text-xs font-bold text-green-600">
-                            {formatCurrency(month.gasto + month.impostos + month.folha + month.outros)}
+                            {formatCurrency(month.receita)}
                           </div>
                         </div>
                       ))}
