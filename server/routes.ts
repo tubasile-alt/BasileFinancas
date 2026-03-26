@@ -22,6 +22,21 @@ const DEFAULT_EMPLOYEES = [
 ];
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  const normalizeSignatureText = (value: string | null | undefined): string => {
+    return (value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^\w\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toUpperCase();
+  };
+
+  const normalizeDocumento = (value: string | null | undefined): string => {
+    const normalized = normalizeSignatureText(value);
+    return normalized.replace(/[^\w]/g, "");
+  };
+
   // Initialize default employees on startup
   const existingEmployees = await storage.getEmployees();
   if (existingEmployees.length === 0) {
@@ -347,11 +362,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         historico: string;
         documento?: string | null;
         valor: string | number;
+        mes?: number | null;
+        ano?: number | null;
       }) => {
-        const historicoNorm = t.historico.trim().toUpperCase();
-        const documentoNorm = (t.documento || "").trim().toUpperCase();
+        const historicoNorm = normalizeSignatureText(t.historico);
+        const documentoNorm = normalizeDocumento(t.documento);
         const valorNorm = Number(t.valor).toFixed(2);
-        return `${t.dateISO}|${historicoNorm}|${documentoNorm}|${valorNorm}`;
+        const mesNorm = Number(t.mes || 0);
+        const anoNorm = Number(t.ano || 0);
+        return `${t.dateISO}|${historicoNorm}|${documentoNorm}|${valorNorm}|${anoNorm}-${mesNorm}`;
       };
 
       const existingSignatures = new Set(
@@ -638,6 +657,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/annual-expenses-summary", async (req, res) => {
     try {
       const year = parseInt(req.query.year as string) || new Date().getFullYear();
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
       const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       const monthData: Record<number, any> = {};
       
@@ -661,10 +683,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       reports.forEach((report: any) => {
         if (report.ano !== year) return;
-        hasData = true;
         
         const mes = report.mes;
         if (!monthData[mes]) return;
+
+        // Mês corrente permanece aberto para visualizar gasto parcial em tempo real
+        const isOpenMonth = year === currentYear && mes === currentMonth;
+        if (isOpenMonth) return;
+
+        hasData = true;
         monthsWithSavedData.add(mes);
         
         try {

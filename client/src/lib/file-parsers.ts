@@ -309,8 +309,33 @@ function findColumnsIntelligently(headers: string[], data: any[]): {
 /**
  * Converte string de data para formato ISO (YYYY-MM-DD)
  */
-function parseDate(dateStr: string): string {
-  if (!dateStr) throw new Error('Data vazia');
+function parseDate(dateInput: string | number | Date): string {
+  if (dateInput === null || dateInput === undefined || dateInput === '') {
+    throw new Error('Data vazia');
+  }
+
+  // Datas em serial Excel (número de dias desde 1899-12-30)
+  if (typeof dateInput === 'number' && Number.isFinite(dateInput)) {
+    const excelDate = XLSX.SSF.parse_date_code(dateInput);
+    if (!excelDate) {
+      throw new Error(`Data serial Excel inválida: ${dateInput}`);
+    }
+
+    const year = `${excelDate.y}`;
+    const month = `${excelDate.m}`.padStart(2, '0');
+    const day = `${excelDate.d}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  // Objeto Date válido
+  if (dateInput instanceof Date && !isNaN(dateInput.getTime())) {
+    const year = `${dateInput.getFullYear()}`;
+    const month = `${dateInput.getMonth() + 1}`.padStart(2, '0');
+    const day = `${dateInput.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  const dateStr = String(dateInput);
   
   // Remove espaços e caracteres especiais
   const cleanDate = dateStr.trim().replace(/[^\d\/\-\.]/g, '');
@@ -355,32 +380,43 @@ function parseDate(dateStr: string): string {
  * Converte string de valor para número
  */
 function parseValue(valueStr: string): number {
-  if (!valueStr) return 0;
-  
-  // Remove espaços e caracteres não numéricos (exceto . , - +)
-  const cleanValue = valueStr.toString().trim().replace(/[^\d\.\,\-\+]/g, '');
-  
+  if (valueStr === null || valueStr === undefined || valueStr === '') return 0;
+
+  const raw = valueStr.toString().trim();
+  if (!raw) return 0;
+
+  // Detecta negativo por parênteses ou sinal
+  const isNegative = raw.includes('(') || raw.startsWith('-');
+
+  // Remove símbolos monetários e mantém apenas dígitos e separadores
+  let cleanValue = raw.replace(/[^\d\.,-]/g, '');
   if (!cleanValue) return 0;
-  
-  // Converte para formato padrão (ponto como decimal)
+
+  // Remove sinais para normalizar em seguida
+  cleanValue = cleanValue.replace(/-/g, '');
+
   let normalizedValue = cleanValue;
-  
-  // Se tem vírgula e ponto, vírgula é decimal
+
+  // Formato com ponto e vírgula (ex: 1.234,56)
   if (normalizedValue.includes(',') && normalizedValue.includes('.')) {
-    normalizedValue = normalizedValue.replace('.', '').replace(',', '.');
-  }
-  // Se tem apenas vírgula, troca por ponto
-  else if (normalizedValue.includes(',')) {
+    const lastComma = normalizedValue.lastIndexOf(',');
+    const lastDot = normalizedValue.lastIndexOf('.');
+    if (lastComma > lastDot) {
+      normalizedValue = normalizedValue.replace(/\./g, '').replace(',', '.');
+    } else {
+      normalizedValue = normalizedValue.replace(/,/g, '');
+    }
+  } else if (normalizedValue.includes(',')) {
     normalizedValue = normalizedValue.replace(',', '.');
   }
-  
+
   const numValue = parseFloat(normalizedValue);
   
   if (isNaN(numValue)) {
     throw new Error(`Valor inválido: ${valueStr}`);
   }
   
-  return numValue;
+  return isNegative ? -Math.abs(numValue) : numValue;
 }
 
 /**
@@ -498,41 +534,69 @@ async function parseXLSX(file: File): Promise<ParseResult> {
         }
         
         const sheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(sheet);
-        
-        if (!jsonData || jsonData.length === 0) {
+        const matrixData = XLSX.utils.sheet_to_json(sheet, {
+          header: 1,
+          raw: false,
+          defval: ''
+        }) as any[][];
+
+        if (!matrixData || matrixData.length === 0) {
           throw new Error('Planilha vazia ou sem dados válidos');
         }
         
         const warnings: string[] = [];
         const transactions: RawTransaction[] = [];
-        
-        // Pega os headers da primeira linha
-        const headers = Object.keys(jsonData[0] as Record<string, any>);
-        
+
+        // Detecta automaticamente a linha que realmente contém os headers
+        let headerRowIndex = -1;
+        let bestScore = -1;
+
+        for (let i = 0; i < Math.min(matrixData.length, 15); i++) {
+          const row = matrixData[i] || [];
+          const candidateHeaders = row.map(cell => String(cell ?? '').trim());
+          if (candidateHeaders.every(h => h === '')) continue;
+
+          const mapped = findColumnsIntelligently(candidateHeaders, []);
+          const score =
+            (mapped.dataCol !== -1 ? 1 : 0) +
+            (mapped.historicoCol !== -1 ? 1 : 0) +
+            (mapped.valorCol !== -1 ? 1 : 0);
+
+          if (score > bestScore) {
+            bestScore = score;
+            headerRowIndex = i;
+          }
+        }
+
+        if (headerRowIndex === -1) {
+          throw new Error('Não foi possível identificar o cabeçalho da planilha');
+        }
+
+        const headers = (matrixData[headerRowIndex] || []).map(cell => String(cell ?? '').trim());
+        const dataRows = matrixData.slice(headerRowIndex + 1);
+
+        const rowsAsObjects = dataRows.map((row) => {
+          const obj: Record<string, any> = {};
+          for (let c = 0; c < headers.length; c++) {
+            obj[headers[c]] = row?.[c] ?? '';
+          }
+          return obj;
+        });
+
         // Encontra os índices das colunas usando análise inteligente
-        const { dataCol, historicoCol, valorCol, documentoCol, saldoCol } = 
-          findColumnsIntelligently(headers, jsonData as any[]);
-        
-        if (dataCol === -1) {
-          throw new Error('Coluna de data não encontrada. Headers disponíveis: ' + headers.join(', ') + 
-            '. Verifique se o arquivo contém uma coluna com datas no formato DD/MM/YYYY ou similar.');
-        }
-        if (historicoCol === -1) {
-          throw new Error('Coluna de histórico não encontrada. Headers disponíveis: ' + headers.join(', ') + 
-            '. Verifique se o arquivo contém uma coluna com descrições das transações.');
-        }
-        if (valorCol === -1) {
-          throw new Error('Coluna de valor não encontrada. Headers disponíveis: ' + headers.join(', ') + 
-            '. Verifique se o arquivo contém uma coluna com valores monetários.');
+        const { dataCol, historicoCol, valorCol, documentoCol, saldoCol } =
+          findColumnsIntelligently(headers, rowsAsObjects);
+
+        if (dataCol === -1 || historicoCol === -1 || valorCol === -1) {
+          throw new Error('Colunas obrigatórias não encontradas (Data, Histórico, Valor). Verifique se o arquivo possui essas colunas.');
         }
         
         let validRows = 0;
         let invalidRows = 0;
         
         // Processa cada linha
-        for (let i = 0; i < jsonData.length; i++) {
-          const row = jsonData[i] as Record<string, any>;
+        for (let i = 0; i < rowsAsObjects.length; i++) {
+          const row = rowsAsObjects[i] as Record<string, any>;
           
           try {
             const rawData = row[headers[dataCol]];
@@ -540,10 +604,16 @@ async function parseXLSX(file: File): Promise<ParseResult> {
             const rawDocumento = documentoCol !== -1 ? row[headers[documentoCol]] : undefined;
             const rawValor = row[headers[valorCol]];
             const rawSaldo = saldoCol !== -1 ? row[headers[saldoCol]] : undefined;
+
+            // Remove linha duplicada de cabeçalho dentro dos dados
+            if (String(rawData).trim().toUpperCase() === 'DATA' &&
+              String(rawHistorico).trim().toUpperCase().includes('HIST')) {
+              continue;
+            }
             
             if (!rawData || !rawHistorico || rawValor === undefined || rawValor === '') {
               invalidRows++;
-              warnings.push(`Linha ${i + 2}: Dados obrigatórios ausentes`);
+              warnings.push(`Linha ${i + 1 + headerRowIndex + 1}: Dados obrigatórios ausentes`);
               continue;
             }
             
@@ -560,7 +630,7 @@ async function parseXLSX(file: File): Promise<ParseResult> {
             
           } catch (error) {
             invalidRows++;
-            warnings.push(`Linha ${i + 2}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+            warnings.push(`Linha ${i + 1 + headerRowIndex + 1}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
           }
         }
         
@@ -569,7 +639,7 @@ async function parseXLSX(file: File): Promise<ParseResult> {
           warnings,
           metadata: {
             fileType: FileType.XLSX,
-            totalRows: jsonData.length,
+            totalRows: rowsAsObjects.length,
             validRows,
             invalidRows
           }
