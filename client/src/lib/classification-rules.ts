@@ -627,6 +627,101 @@ export function detectBoletoSupplier(historico: string): { found: boolean; subca
 }
 
 /**
+ * Regras refinadas da Clínica Basile (prioridade alta para extrato Itaú PJ).
+ */
+function classifyBasileTransaction(historicoUpper: string): ClassificationResult | null {
+  const byCategory: Array<{ categoria: string; ehOperacional: boolean; keywords: string[] }> = [
+    {
+      categoria: "Receitas",
+      ehOperacional: true,
+      keywords: ["PIX RECEBIDO", "PAGAMENTO CARTAO", "GETNET", "TRANSFERENCIA ENTRE CONTAS DE"]
+    },
+    {
+      categoria: "Serviço de Anestesia",
+      ehOperacional: true,
+      keywords: ["JULIA GARCIA SILVESTRE", "THALES PEREIRA DE VASCONCELLOS", "FERNANDO SOUZA DE DEUS", "MAYARA MIRANDA DE OLIVEIRA"]
+    },
+    {
+      categoria: "Manutenção",
+      ehOperacional: true,
+      keywords: ["JULIANO MARQUES LEONI", "VINICIUS EDSON PEREIRA"]
+    },
+    {
+      categoria: "Financiamento / Empréstimo",
+      ehOperacional: true,
+      keywords: ["JUROS SALDO UTILIZ ATE LIMITE"]
+    },
+    {
+      categoria: "Folha de Pagamento / RH",
+      ehOperacional: true,
+      keywords: ["TAR PAGTO SALARIO", "WIN ADMINISTRADORA", "SAQUE DINHEIRO", "CHEQUE EMITIDO"]
+    },
+    {
+      categoria: "Insumos / Materiais Médicos",
+      ehOperacional: true,
+      keywords: ["SUPERMED", "ATIVA COMERCIAL", "HCENTER", "PRECISION COMERCIAL", "FRANCAMED", "HYGIBRAS", "BIOLINE", "PROLKORPUS", "RELOAD COMERCIO", "FORTECARE", "KVO MEDICAL", "MAZZEI COMERCIAL", "MEDICAL SALES", "HDL LOGISTICA", "CRISTALIA", "JP INDUSTRIA FARMACEUTICA", "ROGER COMERCIO", "SW SERVICOS MEDICINA", "BELGO ASSISTENCIA", "MEDICAR", "MADAH", "JOSE LUIZ SEIXAS", "MARIO OSAKABE", "SEGREDOS E INSPIRACOES", "AIR LIQUIDE", "CMF FUNDO", "MULTIPLO FIDC", "BANCO SOFISA", "DANUBIA"]
+    },
+    {
+      categoria: "Impostos / Tributos",
+      ehOperacional: true,
+      keywords: ["DARF", "IOF", "MUNICIPIO DE RIBEIRAO PRETO"]
+    },
+    {
+      categoria: "Tarifas / Encargos Bancários",
+      ehOperacional: true,
+      keywords: ["TARIFA MANUTENCAO CONTA", "TARIFA PIX RECEBIDO QR CHECKOUT", "TARIFA AVULSA ENVIO PIX", "TARIFA TRANSACAO COM CHEQUE", "TARIFA TRANSF RECURSO", "TARIFA MANUTENCAO PAGFOR", "TAR EMISSAO TED"]
+    },
+    {
+      categoria: "Contabilidade / Assessoria",
+      ehOperacional: true,
+      keywords: ["CESAR CONTABILIDADE", "GESTAR ASSESSORIA", "GESTAO FINANCEIRAS"]
+    },
+    {
+      categoria: "Serviços de Lavanderia",
+      ehOperacional: true,
+      keywords: ["LAVANDERIA ASPH", "LC FELTRIN LAVAGENS"]
+    },
+    {
+      categoria: "Tecnologia / Sistemas",
+      ehOperacional: true,
+      keywords: ["RIBERMIDIA", "NOTA CONTROL", "BIONEXO", "GALVANI E BACHIM", "DIGITAL SYSTEM CERTIFICAD", "T.H.A. SCOTT ARMAZENAGEM", "PJBANK"]
+    },
+    {
+      categoria: "Telefonia / Internet",
+      ehOperacional: true,
+      keywords: ["VIVO SP", "CLARO SA", "PGTO CONTA DE TELEFONE VIVO FIXO"]
+    },
+    { categoria: "Energia Elétrica", ehOperacional: true, keywords: ["CPFL CIA PAULISTA"] },
+    { categoria: "Água / Esgoto", ehOperacional: true, keywords: ["SAERP RIBEIRAO PRETO"] },
+    { categoria: "Seguros", ehOperacional: true, keywords: ["HDI SEGURADORA"] },
+    { categoria: "Cartão Corporativo (fatura)", ehOperacional: true, keywords: ["DEBITO AUT. FATURA CARTAO VISA FINAL 2850"] },
+    { categoria: "Marketing / Gráfica", ehOperacional: true, keywords: ["GRAFICA PERI", "REDE BRASIL RP"] },
+    { categoria: "Alimentação / Copa", ehOperacional: true, keywords: ["FRUTPOP ALIMENTOS"] },
+    { categoria: "Sindicato / Encargos Trabalhistas", ehOperacional: true, keywords: ["SIND EMP TURISMO E HOSP", "SIND EMPREG ESTAB SAUDE"] },
+    { categoria: "Transporte / Logística", ehOperacional: true, keywords: ["OSTEL TRANSPORTES"] },
+    {
+      categoria: "Transferências Internas",
+      ehOperacional: false,
+      keywords: ["TRANSF VALOR P/ CONTA DIF TITULAR", "PIX ENVIADO CLINICA BASILE LTDA", "0257.01.043383-0", "3742.01.090085-5"]
+    },
+    { categoria: "Rendimentos (CDB/Conta)", ehOperacional: false, keywords: ["RENDIMENTO LIQUIDO DE CONTAMAX"] },
+    {
+      categoria: "PIX Enviado – Outros Fornecedores",
+      ehOperacional: true,
+      keywords: ["PIX ENVIADO", "CEF MATRIZ", "NILTON CESAR RODRIGUES", "SUMAYA SOUEN", "JONCIONE RIBEIRO", "LEONARDO ROSSI", "CILEUDA MARIA PAULA", "VICTOR HUGO ANDRADE", "MAURICIO FERNANDES", "JULIANA DE FAT"]
+    }
+  ];
+
+  for (const rule of byCategory) {
+    if (rule.keywords.some((keyword) => historicoUpper.includes(keyword))) {
+      return { categoria: rule.categoria, ehOperacional: rule.ehOperacional };
+    }
+  }
+
+  return null;
+}
+
+/**
  * Classifica uma transação bancária baseado no histórico
  * 
  * @param historico - O histórico da transação bancária
@@ -643,6 +738,10 @@ export function classifyTransaction(historico: string): ClassificationResult {
 
   // Converte para uppercase para comparação case-insensitive
   const historicoUpper = historico.toUpperCase();
+
+  // Regras refinadas (Basile) antes das regras genéricas
+  const basileClassification = classifyBasileTransaction(historicoUpper);
+  if (basileClassification) return basileClassification;
 
   // Verifica cada regra em ordem de precedência (pula a regra 0 - IGNORAR)
   for (let i = 1; i < CLASSIFICATION_RULES.length; i++) {
@@ -746,6 +845,23 @@ export function classifyTransactionAdvanced(
   }
 
   // Executa todas as detecções
+  const basileClassification = classifyBasileTransaction(historico.toUpperCase());
+  if (basileClassification) {
+    return {
+      categoria: basileClassification.categoria,
+      ehOperacional: basileClassification.ehOperacional,
+      ehMovtoFinanceiro: !basileClassification.ehOperacional,
+      ehImposto: basileClassification.categoria.includes("Impostos"),
+      ehSalarioPalavra: basileClassification.categoria.includes("Folha de Pagamento"),
+      ehSalarioHeuristico: false,
+      salarioConfirmado: basileClassification.categoria.includes("Folha de Pagamento"),
+      classificacaoFinal: basileClassification.categoria,
+      needsReview: basileClassification.categoria === "PIX Enviado – Outros Fornecedores" || basileClassification.categoria === "Outros",
+      reviewReason: basileClassification.categoria === "PIX Enviado – Outros Fornecedores" ? "PIX enviado sem identificação detalhada do fornecedor" : undefined,
+      confidenceScore: 0.96
+    };
+  }
+
   const ehMovtoFinanceiro = detectFinancialMovement(historico);
   const ehImposto = detectTax(historico);
   const ehSalarioPalavra = detectSalaryByKeyword(historico);
@@ -932,6 +1048,31 @@ export function addSupplierKeywords(newKeywords: string[]): void {
  */
 export function getAllCategories(): string[] {
   const categories = CLASSIFICATION_RULES.map(rule => rule.categoria);
+  categories.push(
+    "Receitas",
+    "Folha de Pagamento / RH",
+    "Serviço de Anestesia",
+    "Insumos / Materiais Médicos",
+    "Impostos / Tributos",
+    "Tarifas / Encargos Bancários",
+    "Financiamento / Empréstimo",
+    "Contabilidade / Assessoria",
+    "Serviços de Lavanderia",
+    "Manutenção",
+    "Tecnologia / Sistemas",
+    "Telefonia / Internet",
+    "Energia Elétrica",
+    "Água / Esgoto",
+    "Seguros",
+    "Cartão Corporativo (fatura)",
+    "Marketing / Gráfica",
+    "Alimentação / Copa",
+    "Sindicato / Encargos Trabalhistas",
+    "Transporte / Logística",
+    "Transferências Internas",
+    "Rendimentos (CDB/Conta)",
+    "PIX Enviado – Outros Fornecedores"
+  );
   categories.push("Outros"); // Adiciona a categoria padrão
   return Array.from(new Set(categories)); // Remove duplicatas
 }
