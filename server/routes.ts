@@ -231,8 +231,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const year = parseInt(req.params.year);
       const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       const monthData: any[] = [];
+      
+      // Get current date to limit months
+      const today = new Date();
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth() + 1;
+      
+      // Only show months up to current month if year is current year
+      const maxMonth = year === currentYear ? currentMonth : 12;
 
-      for (let month = 1; month <= 12; month++) {
+      for (let month = 1; month <= maxMonth; month++) {
         const doctorReports = await storage.getMonthlyReportByDoctor(year, month);
         
         let totalToPay = 0;
