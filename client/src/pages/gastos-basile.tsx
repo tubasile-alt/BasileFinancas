@@ -43,14 +43,13 @@ import {
   CheckCircle,
   Info,
   BarChart3,
-  PieChart,
+  PieChart as PieChartIcon,
   Plus,
   Save,
   History,
   Edit,
   Trash2,
   Filter,
-  Users
 } from 'lucide-react';
 import { MainNavigation } from '@/components/main-navigation';
 
@@ -72,7 +71,7 @@ import {
   getEnhancedReportStats 
 } from '@/lib/report-generators';
 import { ExpenseCategoryChart, WeeklyCashFlowChart } from '@/components/gastos-charts';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import {
   exportExtratoPadronizado,
   exportResumoOperacional,
@@ -96,6 +95,7 @@ import type {
   InsertBankTransactionPersistent,
   ManualExpense,
   InsertManualExpense,
+  SavedMonthlyReport,
   EnhancedOperationalSummary,
   AnnotatedTransaction,
   CategorizedTotal,
@@ -264,6 +264,10 @@ export default function GastosBasilePage() {
     categoria: undefined,
     tipo: 'todos'
   });
+  const [selectedAnnualMonth, setSelectedAnnualMonth] = useState<number>(new Date().getMonth() + 1);
+  const [alertThreshold, setAlertThreshold] = useState<number>(15);
+  const [selectedTrendCategory, setSelectedTrendCategory] = useState<string>('all');
+  const [selectedDetail, setSelectedDetail] = useState<{ month: number; categoria: string } | null>(null);
 
   // Estados para dicionários (classificação avançada)
   const [funcionarios, setFuncionarios] = useState<string[]>([]);
@@ -558,6 +562,146 @@ export default function GastosBasilePage() {
     },
     enabled: !!annualFilters.year,
   });
+
+  const { data: savedMonthlyReports = [] } = useQuery<SavedMonthlyReport[]>({
+    queryKey: ['/api/saved-monthly-reports'],
+    queryFn: async () => {
+      const res = await fetch('/api/saved-monthly-reports');
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const annualReports = useMemo(
+    () => savedMonthlyReports.filter(report => report.ano === annualFilters.year),
+    [savedMonthlyReports, annualFilters.year]
+  );
+
+  const dashboardAnalytics = useMemo(() => {
+    const monthNameShort = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const monthMap: Record<number, Record<string, number>> = {};
+    const monthTransactions: Record<number, Array<{ historico: string; valor: number; categoria: string; dateISO: string }>> = {};
+
+    const parseNumber = (value: unknown): number => {
+      const parsed = Number(value ?? 0);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    annualReports.forEach((report) => {
+      const month = Number(report.mes);
+      if (!monthMap[month]) monthMap[month] = {};
+      if (!monthTransactions[month]) monthTransactions[month] = [];
+
+      const categoryData = Array.isArray(report.categoryReportData)
+        ? report.categoryReportData as any[]
+        : typeof report.categoryReportData === 'string'
+          ? JSON.parse(report.categoryReportData)
+          : [];
+      categoryData.forEach((item: any) => {
+        const categoria = item?.categoria?.toString?.() || 'Sem categoria';
+        const valor = Math.abs(parseNumber(item?.valor));
+        monthMap[month][categoria] = (monthMap[month][categoria] || 0) + valor;
+      });
+
+      const transactions = Array.isArray(report.transactionsData)
+        ? report.transactionsData as any[]
+        : typeof report.transactionsData === 'string'
+          ? JSON.parse(report.transactionsData)
+          : [];
+      monthTransactions[month] = transactions
+        .filter((item: any) => parseNumber(item?.valor) < 0)
+        .map((item: any) => ({
+          historico: item?.historico?.toString?.() || 'Sem histórico',
+          categoria: item?.categoria?.toString?.() || 'Sem categoria',
+          valor: Math.abs(parseNumber(item?.valor)),
+          dateISO: item?.dateISO?.toString?.() || ''
+        }));
+    });
+
+    const yearCategoryTotals: Record<string, number> = {};
+    Object.values(monthMap).forEach((categories) => {
+      Object.entries(categories).forEach(([category, total]) => {
+        yearCategoryTotals[category] = (yearCategoryTotals[category] || 0) + total;
+      });
+    });
+
+    const topCategories = Object.entries(yearCategoryTotals)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([category]) => category);
+
+    const stackData = Array.from({ length: 12 }, (_, idx) => {
+      const month = idx + 1;
+      const entry: Record<string, number | string> = { month, monthName: monthNameShort[idx] };
+      topCategories.forEach(category => {
+        entry[category] = monthMap[month]?.[category] || 0;
+      });
+      return entry;
+    });
+
+    const selectedMonthCategories = Object.entries(monthMap[selectedAnnualMonth] || {})
+      .map(([categoria, total]) => ({ categoria, total }))
+      .sort((a, b) => b.total - a.total);
+
+    const totalSelectedMonth = selectedMonthCategories.reduce((sum, row) => sum + row.total, 0);
+    const biggestCategory = selectedMonthCategories[0];
+    const previousMonth = selectedAnnualMonth === 1 ? 12 : selectedAnnualMonth - 1;
+
+    const alerts = selectedMonthCategories
+      .map(row => {
+        const history = [1, 2, 3]
+          .map(offset => {
+            const month = selectedAnnualMonth - offset;
+            return month > 0 ? (monthMap[month]?.[row.categoria] || 0) : 0;
+          })
+          .filter(value => value > 0);
+        const avg3m = history.length ? history.reduce((sum, n) => sum + n, 0) / history.length : 0;
+        const variation = avg3m > 0 ? ((row.total - avg3m) / avg3m) * 100 : 0;
+        return { ...row, avg3m, variation };
+      })
+      .filter(row => row.avg3m > 0 && row.variation >= alertThreshold)
+      .sort((a, b) => b.variation - a.variation);
+
+    const monthOutflow = annualSpendData?.monthlyData.find(item => item.month === selectedAnnualMonth)?.saidas || 0;
+    const prevOutflow = annualSpendData?.monthlyData.find(item => item.month === previousMonth)?.saidas || 0;
+    const outflowVariation = prevOutflow > 0 ? ((monthOutflow - prevOutflow) / prevOutflow) * 100 : 0;
+
+    let highestGrowth = { categoria: 'Sem dados', variation: 0 };
+    selectedMonthCategories.forEach((row) => {
+      const previous = monthMap[previousMonth]?.[row.categoria] || 0;
+      if (previous > 0) {
+        const variation = ((row.total - previous) / previous) * 100;
+        if (variation > highestGrowth.variation) highestGrowth = { categoria: row.categoria, variation };
+      }
+    });
+
+    const trendCategory = selectedTrendCategory !== 'all'
+      ? selectedTrendCategory
+      : topCategories[0] || selectedMonthCategories[0]?.categoria || '';
+    const trendData = Array.from({ length: 12 }, (_, idx) => ({
+      month: idx + 1,
+      monthName: monthNameShort[idx],
+      valor: trendCategory ? (monthMap[idx + 1]?.[trendCategory] || 0) : 0
+    }));
+
+    const totalPagarMes = annualExpenses.find(item => item.mes === selectedAnnualMonth)?.gasto || 0;
+
+    return {
+      topCategories,
+      stackData,
+      selectedMonthCategories,
+      totalSelectedMonth,
+      biggestCategory,
+      alerts,
+      monthOutflow,
+      outflowVariation,
+      highestGrowth,
+      trendCategory,
+      trendData,
+      monthTransactions,
+      totalPagarMes,
+    };
+  }, [annualReports, annualSpendData, annualExpenses, selectedAnnualMonth, selectedTrendCategory, alertThreshold]);
 
   // MUTATIONS: Operações CRUD
   const saveExtractMutation = useMutation({
@@ -2475,7 +2619,7 @@ export default function GastosBasilePage() {
                           className="flex items-center gap-2"
                           data-testid="button-export-categorias"
                         >
-                          <PieChart className="h-4 w-4" />
+                          <PieChartIcon className="h-4 w-4" />
                           Categorias
                         </Button>
                         <Button
@@ -3006,228 +3150,321 @@ export default function GastosBasilePage() {
               </div>
             )}
 
-            {/* Cards de totais */}
+            {/* Dashboard de Custos (CEO) */}
             {annualSpendData && (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Entradas</CardTitle>
-                      <TrendingUp className="h-4 w-4 text-green-600" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold text-green-600" data-testid="text-annual-entradas">
-                        {formatCurrencyBR(annualSpendData?.totals.entradas || 0)}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Dashboard de Custos — Clínica Basile</CardTitle>
+                    <CardDescription>
+                      Análise mensal com KPIs, alertas automáticos e drill-down por categoria.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label>Mês de referência</Label>
+                        <Select value={selectedAnnualMonth.toString()} onValueChange={(value) => setSelectedAnnualMonth(Number(value))}>
+                          <SelectTrigger data-testid="select-gasto-dashboard-month">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {months.map((month) => (
+                              <SelectItem key={month.value} value={month.value.toString()}>
+                                {month.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Total de receitas no ano
-                      </p>
-                    </CardContent>
-                  </Card>
+                      <div>
+                        <Label>Threshold de alerta (%)</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={alertThreshold}
+                          onChange={(e) => setAlertThreshold(Number(e.target.value) || 15)}
+                          data-testid="input-alert-threshold"
+                        />
+                      </div>
+                      <div>
+                        <Label>Categoria da tendência</Label>
+                        <Select value={selectedTrendCategory} onValueChange={setSelectedTrendCategory}>
+                          <SelectTrigger data-testid="select-trend-category">
+                            <SelectValue placeholder="Selecione uma categoria" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Automático (Top categoria)</SelectItem>
+                            {dashboardAnalytics.topCategories.map((category) => (
+                              <SelectItem key={category} value={category}>{category}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Saídas</CardTitle>
+                      <CardTitle className="text-sm font-medium">Total de Saídas do Mês</CardTitle>
                       <TrendingDown className="h-4 w-4 text-red-600" />
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold text-red-600" data-testid="text-annual-saidas">
-                        {formatCurrencyBR(annualSpendData?.totals.saidas || 0)}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Total de despesas no ano
+                      <div className="text-2xl font-bold text-red-600">{formatCurrencyBR(dashboardAnalytics.monthOutflow)}</div>
+                      <p className={`text-xs ${dashboardAnalytics.outflowVariation <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {dashboardAnalytics.outflowVariation >= 0 ? '+' : ''}{dashboardAnalytics.outflowVariation.toFixed(1)}% vs mês anterior
                       </p>
                     </CardContent>
                   </Card>
-
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Saldo Líquido</CardTitle>
-                      <DollarSign className={`h-4 w-4 ${(annualSpendData?.totals.saldoLiquido || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`} />
+                      <CardTitle className="text-sm font-medium">Maior Categoria</CardTitle>
+                      <BarChart3 className="h-4 w-4 text-primary" />
                     </CardHeader>
                     <CardContent>
-                      <div className={`text-2xl font-bold ${(annualSpendData?.totals.saldoLiquido || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`} data-testid="text-annual-saldo">
-                        {formatCurrencyBR(annualSpendData?.totals.saldoLiquido || 0)}
-                      </div>
+                      <div className="text-base font-semibold truncate">{dashboardAnalytics.biggestCategory?.categoria || 'Sem dados'}</div>
                       <p className="text-xs text-muted-foreground">
-                        Resultado líquido do ano
+                        {formatCurrencyBR(dashboardAnalytics.biggestCategory?.total || 0)} ({dashboardAnalytics.totalSelectedMonth > 0 ? (((dashboardAnalytics.biggestCategory?.total || 0) / dashboardAnalytics.totalSelectedMonth) * 100).toFixed(1) : '0.0'}%)
                       </p>
                     </CardContent>
                   </Card>
-                </div>
-
-                {/* Gráficos */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Bar Chart - Entradas vs Saídas */}
                   <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <BarChart3 className="h-5 w-5" />
-                        Entradas vs Saídas por Mês
-                      </CardTitle>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Categoria com Maior Alta</CardTitle>
+                      <TrendingUp className="h-4 w-4 text-amber-600" />
                     </CardHeader>
                     <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={annualSpendData?.monthlyData || []}>
+                      <div className="text-base font-semibold truncate">{dashboardAnalytics.highestGrowth.categoria}</div>
+                      <p className="text-xs text-amber-600">+{dashboardAnalytics.highestGrowth.variation.toFixed(1)}% vs mês anterior</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Alertas Ativos</CardTitle>
+                      <AlertCircle className="h-4 w-4 text-orange-600" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-orange-600">{dashboardAnalytics.alerts.length}</div>
+                      <p className="text-xs text-muted-foreground">Categorias acima de {alertThreshold}%</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Entrada (Total a Pagar/Mês)</CardTitle>
+                      <DollarSign className="h-4 w-4 text-blue-600" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-blue-600">{formatCurrencyBR(dashboardAnalytics.totalPagarMes)}</div>
+                      <p className="text-xs text-muted-foreground">Valor total do relatório mensal selecionado</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {dashboardAnalytics.alerts.length > 0 && (
+                  <Alert className="border-orange-500">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <div className="font-medium mb-1">Categorias com alerta ativo:</div>
+                      <div className="flex flex-wrap gap-2">
+                        {dashboardAnalytics.alerts.map((alert) => (
+                          <Badge key={alert.categoria} variant="destructive">
+                            {alert.categoria}: +{alert.variation.toFixed(1)}%
+                          </Badge>
+                        ))}
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Distribuição de Custos (Donut)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={320}>
+                        <PieChart>
+                          <Pie
+                            data={dashboardAnalytics.selectedMonthCategories}
+                            dataKey="total"
+                            nameKey="categoria"
+                            innerRadius={65}
+                            outerRadius={120}
+                            onClick={(entry: any) => setSelectedDetail({ month: selectedAnnualMonth, categoria: entry.categoria })}
+                          >
+                            {dashboardAnalytics.selectedMonthCategories.map((_, index) => (
+                              <Cell key={`cell-${index}`} fill={['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#06B6D4'][index % 6]} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value: number) => formatCurrencyBR(value)} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Barras Empilhadas (Top 6 categorias)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={320}>
+                        <BarChart data={dashboardAnalytics.stackData}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="monthName" />
                           <YAxis />
                           <Tooltip formatter={(value: number) => formatCurrencyBR(value)} />
                           <Legend />
-                          <Bar dataKey="entradas" fill="#10B981" name="Entradas" />
-                          <Bar dataKey="saidas" fill="#EF4444" name="Saídas" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-
-                  {/* Line Chart - Saldo Líquido */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <TrendingUp className="h-5 w-5" />
-                        Saldo Líquido Mensal
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={annualSpendData?.monthlyData || []}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="monthName" />
-                          <YAxis />
-                          <Tooltip formatter={(value: number) => formatCurrencyBR(value)} />
-                          <Legend />
-                          <Line 
-                            type="monotone" 
-                            dataKey="saldoLiquido" 
-                            stroke="#8884d8" 
-                            strokeWidth={3}
-                            name="Saldo Líquido"
-                            dot={{ fill: '#8884d8', strokeWidth: 2, r: 4 }}
-                            activeDot={{ r: 6, stroke: '#8884d8', strokeWidth: 2 }}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* 3 Gráficos Adicionais */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Gráfico de Impostos por Mês */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <DollarSign className="h-5 w-5" />
-                        Gastos em Impostos por Mês
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={annualExpenses}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="label" />
-                          <YAxis />
-                          <Tooltip formatter={(value: number) => formatCurrencyBR(value)} />
-                          <Legend />
-                          <Line 
-                            type="monotone" 
-                            dataKey="impostos" 
-                            stroke="#f59e0b" 
-                            strokeWidth={2}
-                            name="Impostos"
-                            dot={{ r: 4 }}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-
-                  {/* Gráfico de Folha de Pagamento por Mês */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Users className="h-5 w-5" />
-                        Folha de Pagamento por Mês
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={annualExpenses}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="label" />
-                          <YAxis />
-                          <Tooltip formatter={(value: number) => formatCurrencyBR(value)} />
-                          <Legend />
-                          <Bar dataKey="folha" fill="#8b5cf6" name="Folha de Pagamento" />
+                          {dashboardAnalytics.topCategories.map((category, index) => (
+                            <Bar key={category} dataKey={category} stackId="a" fill={['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#06B6D4'][index % 6]} />
+                          ))}
                         </BarChart>
                       </ResponsiveContainer>
                     </CardContent>
                   </Card>
                 </div>
 
-                {/* Outros Gastos por Mês */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BarChart3 className="h-5 w-5" />
-                      Outros Gastos por Mês
-                    </CardTitle>
+                    <CardTitle>Linha de Tendência — {dashboardAnalytics.trendCategory || 'Sem categoria'}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={annualExpenses}>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <LineChart data={dashboardAnalytics.trendData}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="label" />
+                        <XAxis dataKey="monthName" />
                         <YAxis />
                         <Tooltip formatter={(value: number) => formatCurrencyBR(value)} />
-                        <Legend />
-                        <Bar dataKey="outros" fill="#06b6d4" name="Outros Gastos" />
-                      </BarChart>
+                        <Line type="monotone" dataKey="valor" stroke="#2563eb" strokeWidth={3} />
+                      </LineChart>
                     </ResponsiveContainer>
                   </CardContent>
                 </Card>
 
-                {/* Tabela de breakdown por categoria */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <PieChart className="h-5 w-5" />
-                      Breakdown por Categoria (Top 10)
-                    </CardTitle>
-                    <CardDescription>
-                      Maiores categorias por volume total
-                    </CardDescription>
+                    <CardTitle>Radar de Gargalos</CardTitle>
+                    <CardDescription>Threshold configurável (padrão 15%) vs média móvel de 3 meses.</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Categoria</TableHead>
-                          <TableHead>Tipo</TableHead>
-                          <TableHead className="text-right">Total</TableHead>
-                          <TableHead className="text-right">% do Total</TableHead>
+                          <TableHead className="text-right">Mês Atual</TableHead>
+                          <TableHead className="text-right">Média 3M</TableHead>
+                          <TableHead className="text-right">Variação</TableHead>
+                          <TableHead>Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {annualSpendData?.categoryBreakdown.slice(0, 10).map((category, index) => (
-                          <TableRow key={`${category.categoria}-${category.tipo}`} data-testid={`row-category-${index}`}>
-                            <TableCell className="font-medium">{category.categoria}</TableCell>
+                        {dashboardAnalytics.alerts.map((alert) => (
+                          <TableRow key={alert.categoria} className="cursor-pointer" onClick={() => setSelectedDetail({ month: selectedAnnualMonth, categoria: alert.categoria })}>
+                            <TableCell className="font-medium">{alert.categoria}</TableCell>
+                            <TableCell className="text-right">{formatCurrencyBR(alert.total)}</TableCell>
+                            <TableCell className="text-right">{formatCurrencyBR(alert.avg3m)}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <div className="w-20 h-2 rounded bg-muted overflow-hidden">
+                                  <div
+                                    className={`h-full ${alert.variation >= alertThreshold * 1.5 ? 'bg-red-600' : alert.variation >= alertThreshold ? 'bg-amber-500' : 'bg-green-600'}`}
+                                    style={{ width: `${Math.min(100, Math.max(10, alert.variation))}%` }}
+                                  />
+                                </div>
+                                <span className="font-medium">+{alert.variation.toFixed(1)}%</span>
+                              </div>
+                            </TableCell>
                             <TableCell>
-                              <Badge variant={category.tipo === 'entrada' ? 'default' : 'destructive'}>
-                                {category.tipo === 'entrada' ? 'Entrada' : 'Saída'}
+                              <Badge variant={alert.variation >= alertThreshold * 1.5 ? 'destructive' : 'secondary'}>
+                                {alert.variation >= alertThreshold * 1.5 ? 'Crítico' : 'Atenção'}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-right font-mono">
-                              {formatCurrencyBR(category.total)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {category.percentage.toFixed(1)}%
-                            </TableCell>
                           </TableRow>
-                        )) || []}
+                        ))}
                       </TableBody>
                     </Table>
+                  </CardContent>
+                </Card>
+
+                <Dialog open={!!selectedDetail} onOpenChange={(open) => !open && setSelectedDetail(null)}>
+                  <DialogContent className="max-w-3xl">
+                    <DialogHeader>
+                      <DialogTitle>
+                        Lançamentos — {selectedDetail?.categoria} ({months.find(m => m.value === selectedDetail?.month)?.label})
+                      </DialogTitle>
+                      <DialogDescription>Detalhe linha a linha dos lançamentos reais do mês/categoria.</DialogDescription>
+                    </DialogHeader>
+                    <div className="max-h-[420px] overflow-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Data</TableHead>
+                            <TableHead>Histórico</TableHead>
+                            <TableHead>Categoria</TableHead>
+                            <TableHead className="text-right">Valor</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(selectedDetail
+                            ? (dashboardAnalytics.monthTransactions[selectedDetail.month] || []).filter(item => item.categoria === selectedDetail.categoria)
+                            : []
+                          ).slice(0, 80).map((item, index) => (
+                            <TableRow key={`${item.dateISO}-${index}`}>
+                              <TableCell>{item.dateISO}</TableCell>
+                              <TableCell>{item.historico}</TableCell>
+                              <TableCell>{item.categoria}</TableCell>
+                              <TableCell className="text-right font-mono">{formatCurrencyBR(item.valor)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Resumo Financeiro Anual Integrado</CardTitle>
+                    <CardDescription>
+                      Consolidação entre dados já lançados/salvos e análise mensal do novo dashboard (sem duplicar gráficos).
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">Entradas no ano</p>
+                        <p className="text-xl font-bold text-green-600">{formatCurrencyBR(annualSpendData?.totals.entradas || 0)}</p>
+                      </div>
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">Saídas no ano</p>
+                        <p className="text-xl font-bold text-red-600">{formatCurrencyBR(annualSpendData?.totals.saidas || 0)}</p>
+                      </div>
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">Saldo líquido anual</p>
+                        <p className={`text-xl font-bold ${(annualSpendData?.totals.saldoLiquido || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrencyBR(annualSpendData?.totals.saldoLiquido || 0)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <ResponsiveContainer width="100%" height={280}>
+                      <BarChart data={annualSpendData?.monthlyData || []}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="monthName" />
+                        <YAxis />
+                        <Tooltip formatter={(value: number) => formatCurrencyBR(value)} />
+                        <Legend />
+                        <Bar dataKey="entradas" fill="#10B981" name="Entradas" />
+                        <Bar dataKey="saidas" fill="#EF4444" name="Saídas" />
+                        <Line type="monotone" dataKey="saldoLiquido" stroke="#6366f1" strokeWidth={2} name="Saldo Líquido" />
+                      </BarChart>
+                    </ResponsiveContainer>
+
+                    <p className="text-xs text-muted-foreground">
+                      Fonte dos dados: relatórios mensais já salvos (`saved-monthly-reports`) e histórico anual consolidado da API.
+                    </p>
                   </CardContent>
                 </Card>
 
