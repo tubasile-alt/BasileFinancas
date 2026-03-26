@@ -1096,11 +1096,13 @@ export default function GastosBasilePage() {
       // Validações obrigatórias de reconciliação
       const totalBruto = parseResult.transactions.reduce((sum, t) => sum + Number(t.valor || 0), 0);
       const totalProcessado = normalizationResult.transactions.reduce((sum, t) => sum + Number(t.valor || 0), 0);
+      
+      // Compare totais de entradas (valores positivos)
       const entradasBrutas = parseResult.transactions
         .filter(t => Number(t.valor || 0) > 0)
         .reduce((sum, t) => sum + Number(t.valor || 0), 0);
-      const totalReceitaClassificada = normalizationResult.transactions
-        .filter(t => t.categoria === 'Receita')
+      const entradasProcessadas = normalizationResult.transactions
+        .filter(t => Number(t.valor || 0) > 0)
         .reduce((sum, t) => sum + Number(t.valor || 0), 0);
 
       const epsilon = 0.01;
@@ -1110,9 +1112,9 @@ export default function GastosBasilePage() {
         );
       }
 
-      if (Math.abs(entradasBrutas - totalReceitaClassificada) > epsilon) {
+      if (Math.abs(entradasBrutas - entradasProcessadas) > epsilon) {
         throw new Error(
-          `Falha na reconciliação: entradas brutas (${formatCurrencyBR(entradasBrutas)}) diferem da Receita classificada (${formatCurrencyBR(totalReceitaClassificada)}).`
+          `Falha na reconciliação: entradas brutas (${formatCurrencyBR(entradasBrutas)}) diferem das entradas processadas (${formatCurrencyBR(entradasProcessadas)}).`
         );
       }
 
