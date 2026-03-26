@@ -225,6 +225,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get total to pay by month for entire year (consolidated from all doctors)
+  app.get("/api/monthly-totals-to-pay/:year", async (req, res) => {
+    try {
+      const year = parseInt(req.params.year);
+      const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      const monthData: any[] = [];
+
+      for (let month = 1; month <= 12; month++) {
+        const doctorReports = await storage.getMonthlyReportByDoctor(year, month);
+        
+        let totalToPay = 0;
+        doctorReports.forEach((doctor: any) => {
+          if (doctor.doctor === 'fisioterapia') return;
+          
+          const baseCost = doctor.totalCosts || 0;
+          const cardTax = doctor.doctor === 'icb-transplante' 
+            ? 0 
+            : (Math.max(doctor.cardTotal || 0, doctor.nfTotal || 0) * 0.11);
+          
+          totalToPay += baseCost + cardTax;
+        });
+
+        monthData.push({
+          mes: month,
+          label: monthNames[month - 1],
+          total_a_pagar: totalToPay
+        });
+      }
+
+      res.json(monthData);
+    } catch (error) {
+      console.error("Error in monthly totals to pay:", error);
+      res.json([]);
+    }
+  });
+
   app.get("/api/monthly-report-by-doctor/:year/:month", async (req, res) => {
     try {
       const year = parseInt(req.params.year);

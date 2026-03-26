@@ -75,6 +75,11 @@ export default function MonthlyDashboard() {
     enabled: !!selectedYear,
   });
 
+  const { data: monthlyTotalsToPay, isLoading: isLoadingMonthlyTotals } = useQuery<any[]>({
+    queryKey: ["/api/monthly-totals-to-pay", selectedYear],
+    enabled: !!selectedYear,
+  });
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -209,21 +214,21 @@ export default function MonthlyDashboard() {
 
           <Card className="p-6">
             <div className="flex items-center space-x-3">
-              <DollarSign className="h-8 w-8 text-green-600" />
+              <DollarSign className="h-8 w-8 text-red-600" />
               <div className="flex-1">
-                <div className="text-sm text-muted-foreground uppercase tracking-wide">Total Pago no Ano de 2026</div>
+                <div className="text-sm text-muted-foreground uppercase tracking-wide">Total a Pagar por Mês</div>
                 <div className="space-y-1.5 mt-3 max-h-48 overflow-y-auto">
-                  {isLoadingAnnual ? (
+                  {isLoadingMonthlyTotals ? (
                     <div className="text-muted-foreground">Carregando...</div>
                   ) : (
                     <>
-                      {annualExpenses?.map((month, index) => (
+                      {monthlyTotalsToPay?.map((month, index) => (
                         <div key={index} className="flex justify-between items-center py-1">
                           <div className="text-xs font-medium">
                             {month.label}
                           </div>
-                          <div className="text-xs font-bold text-green-600">
-                            {formatCurrency(month.receita)}
+                          <div className="text-xs font-bold text-red-600">
+                            {formatCurrency(month.total_a_pagar)}
                           </div>
                         </div>
                       ))}
