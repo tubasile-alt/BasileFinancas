@@ -14,7 +14,7 @@ import {
   type BankTransaction 
 } from '@shared/schema';
 import { type RawTransaction } from './file-parsers';
-import { classifyTransactionCanonical } from './classification-rules';
+import { classifyTransactionAnalytical } from './classification-rules';
 import { getISOWeek, parseISO, format, isValid } from 'date-fns';
 
 /**
@@ -314,16 +314,22 @@ function bankToClassifiedTransaction(bank: BankTransaction): ClassifiedTransacti
 
   // Classifica a transação
   const { normalized: historico, forClassification } = normalizeHistory(bank.historico);
-  const classification = classifyTransactionCanonical(forClassification, bank.valor);
+  const classification = classifyTransactionAnalytical(forClassification, bank.valor);
 
   return {
     ...bank,
     historico, // usa a versão normalizada
-    categoria: classification.categoria,
+    categoria: classification.categoriaMacro,
     ehOperacional: classification.ehOperacional,
     mes: month,
     ano: year,
-    isoWeek
+    isoWeek,
+    categoriaOrigemExtrato: classification.categoriaOrigemExtrato,
+    categoriaMacro: classification.categoriaMacro,
+    categoriaAnaliticaFinal: classification.categoriaAnaliticaFinal,
+    regraAplicada: classification.regraAplicada,
+    confidenceScore: classification.confidenceScore,
+    requiresReview: classification.requiresReview
   };
 }
 

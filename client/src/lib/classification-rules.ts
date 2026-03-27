@@ -49,6 +49,82 @@ export interface ClassificationDictionaries {
   fornecedores?: string[];
 }
 
+export const ANALYTICAL_EXPENSE_CATEGORIES = {
+  FOLHA_RH: "Folha de Pagamento / RH",
+  SERVICO_ANESTESIA: "Serviço de Anestesia",
+  MANUTENCAO: "Manutenção",
+  TRANSFERENCIAS_INTERNAS: "Transferências Internas",
+  CONTABILIDADE_ASSESSORIA: "Contabilidade / Assessoria",
+  PIX_OUTROS_FORNECEDORES: "PIX Enviado – Outros Fornecedores"
+} as const;
+
+export type AnalyticalExpenseCategory =
+  typeof ANALYTICAL_EXPENSE_CATEGORIES[keyof typeof ANALYTICAL_EXPENSE_CATEGORIES];
+
+export type CounterpartyType =
+  | "funcionario"
+  | "fornecedor"
+  | "conta_propria"
+  | "assessoria"
+  | "prestador_servico";
+
+export interface CounterpartyRecord {
+  nome_normalizado: string;
+  aliases: string[];
+  tipo_contraparte: CounterpartyType;
+  categoria_analitica_final: AnalyticalExpenseCategory;
+  ativo: boolean;
+}
+
+const makeCounterparty = (
+  nome_normalizado: string,
+  aliases: string[],
+  tipo_contraparte: CounterpartyType,
+  categoria_analitica_final: AnalyticalExpenseCategory
+): CounterpartyRecord => ({
+  nome_normalizado,
+  aliases,
+  tipo_contraparte,
+  categoria_analitica_final,
+  ativo: true
+});
+
+export const DEFAULT_COUNTERPARTIES: CounterpartyRecord[] = [
+  // RH
+  makeCounterparty("MARCELLA", ["MARCELLA", "MARCELLA CAVINATTO SALIBE"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("FRANCIELE", ["FRANCIELE", "FRANCIELE DE QUEIROZ BUEN"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("IDALINA", ["IDALINA", "IDALINA FRANCISCA RIBEIRO"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("PALOMA", ["PALOMA", "PALOMA CAMILA FERREIRA"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("GRASIELLE", ["GRASIELLE", "GRASIELLE CRISTINA DOS SA"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("LAURA", ["LAURA", "LAURA DE AGUIAR CAMPANINI"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("GISELE", ["GISELE", "GISELE CESCATE"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("CHRISTIANE", ["CHRISTIANE", "CHRISTIANE MICHELLE DELLA"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("VANESSA", ["VANESSA", "VANESSA DE MORAES POLVERI"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("DAIANE", ["DAIANE", "DAIANE COSTA SANTOS"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("MARIA APARECIDA", ["MARIA APARECIDA"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("NILTON CESAR", ["NILTON CESAR", "NILTON CÉSAR", "NILTON CESAR RODRIGUES"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("JOSE GERALDO", ["JOSE GERALDO", "JOSÉ GERALDO"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("LEONARDO ROSSI", ["LEONARDO ROSSI"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("JONCIONE", ["JONCIONE", "JONCIONE RIBEIRO"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("VICTOR HUGO", ["VICTOR HUGO", "VICTOR HUGO ANDRADE"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("JULIANA", ["JULIANA", "JULIANA DE FAT"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("CILEUDA", ["CILEUDA", "CILEUDA MARIA PAULA"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("MAURICIO", ["MAURICIO", "MAURÍCIO", "MAURICIO FERNANDES"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  makeCounterparty("SUMAYA", ["SUMAYA", "SUMAYA SOUEN"], "funcionario", ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH),
+  // Serviço de Anestesia
+  makeCounterparty("JULIA GARCIA SILVESTRE", ["JULIA GARCIA SILVESTRE", "JULIA GARCIA"], "prestador_servico", ANALYTICAL_EXPENSE_CATEGORIES.SERVICO_ANESTESIA),
+  makeCounterparty("THALES PEREIRA", ["THALES PEREIRA", "THALES PEREIRA DE VASCONCELLOS"], "prestador_servico", ANALYTICAL_EXPENSE_CATEGORIES.SERVICO_ANESTESIA),
+  makeCounterparty("FERNANDO SOUZA DE DEUS", ["FERNANDO SOUZA DE DEUS", "FERNANDO SOUZA"], "prestador_servico", ANALYTICAL_EXPENSE_CATEGORIES.SERVICO_ANESTESIA),
+  makeCounterparty("MAYARA MIRANDA", ["MAYARA MIRANDA", "MAYARA MIRANDA DE OLIVEIRA"], "prestador_servico", ANALYTICAL_EXPENSE_CATEGORIES.SERVICO_ANESTESIA),
+  // Manutenção
+  makeCounterparty("JULIANO MARQUES LEONI", ["JULIANO MARQUES LEONI", "JULIANO LEONI"], "fornecedor", ANALYTICAL_EXPENSE_CATEGORIES.MANUTENCAO),
+  makeCounterparty("VINICIUS EDSON PEREIRA", ["VINICIUS EDSON PEREIRA", "VINICIUS PEREIRA"], "fornecedor", ANALYTICAL_EXPENSE_CATEGORIES.MANUTENCAO),
+  // Transferências Internas
+  makeCounterparty("CLINICA BASILE LTDA", ["CLINICA BASILE LTDA", "CLÍNICA BASILE LTDA"], "conta_propria", ANALYTICAL_EXPENSE_CATEGORIES.TRANSFERENCIAS_INTERNAS),
+  // Contabilidade / Assessoria
+  makeCounterparty("CESAR CONTABILIDADE LTDA", ["CESAR CONTABILIDADE LTDA", "CESAR CONTABILIDADE"], "assessoria", ANALYTICAL_EXPENSE_CATEGORIES.CONTABILIDADE_ASSESSORIA)
+];
+
 /**
  * Palavras-chave para transações que devem ser completamente ignoradas
  */
@@ -727,6 +803,121 @@ export function detectBoletoSupplier(historico: string): { found: boolean; subca
   }
   
   return { found: false };
+}
+
+export function normalizeCounterpartyName(name: string): string {
+  return (name || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+}
+
+export function extractPixRecipient(historico: string): string {
+  const historicoUpper = historico.toUpperCase();
+  const marker = "PIX ENVIADO";
+  const pixIndex = historicoUpper.indexOf(marker);
+  if (pixIndex < 0) return "";
+
+  const rawRecipient = historico.substring(pixIndex + marker.length).trim();
+  // Remove conectores comuns de layout bancário
+  return rawRecipient
+    .replace(/^[-:|/\\\s]+/, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function findCounterpartyMatch(
+  normalizedRecipient: string,
+  counterparties: CounterpartyRecord[]
+): CounterpartyRecord | undefined {
+  if (!normalizedRecipient) return undefined;
+
+  return counterparties.find((cp) => {
+    if (!cp.ativo) return false;
+    const aliasList = [cp.nome_normalizado, ...cp.aliases].map(normalizeCounterpartyName);
+    return aliasList.some(alias => normalizedRecipient.includes(alias));
+  });
+}
+
+export interface AnalyticalClassificationResult {
+  categoriaOrigemExtrato: string;
+  categoriaMacro: string;
+  categoriaAnaliticaFinal: string;
+  regraAplicada: string;
+  confidenceScore: number;
+  requiresReview: boolean;
+  ehOperacional: boolean;
+}
+
+function mapAnalyticalToMacro(analytical: string): { categoriaMacro: string; ehOperacional: boolean } {
+  if (analytical === ANALYTICAL_EXPENSE_CATEGORIES.FOLHA_RH) {
+    return { categoriaMacro: "Despesa – Folha de Pagamento", ehOperacional: true };
+  }
+
+  if (analytical === ANALYTICAL_EXPENSE_CATEGORIES.TRANSFERENCIAS_INTERNAS) {
+    return { categoriaMacro: "Movimentação Não Operacional", ehOperacional: false };
+  }
+
+  if (analytical === ANALYTICAL_EXPENSE_CATEGORIES.PIX_OUTROS_FORNECEDORES) {
+    return { categoriaMacro: "PIX Enviado", ehOperacional: true };
+  }
+
+  return { categoriaMacro: "Despesa – Boletos/Fornecedores", ehOperacional: true };
+}
+
+export function classifyTransactionAnalytical(
+  historico: string,
+  valor: number,
+  counterparties: CounterpartyRecord[] = DEFAULT_COUNTERPARTIES
+): AnalyticalClassificationResult {
+  const canonical = classifyTransactionCanonical(historico, valor);
+
+  const defaultResult: AnalyticalClassificationResult = {
+    categoriaOrigemExtrato: canonical.categoria,
+    categoriaMacro: canonical.categoria,
+    categoriaAnaliticaFinal: canonical.categoria,
+    regraAplicada: "macro_canonical",
+    confidenceScore: 0.8,
+    requiresReview: false,
+    ehOperacional: canonical.ehOperacional
+  };
+
+  const historicoUpper = historico.toUpperCase();
+  const isPixSent = valor < 0 && historicoUpper.includes("PIX ENVIADO");
+  if (!isPixSent) {
+    return defaultResult;
+  }
+
+  const recipient = extractPixRecipient(historico);
+  const normalizedRecipient = normalizeCounterpartyName(recipient);
+  const match = findCounterpartyMatch(normalizedRecipient, counterparties);
+
+  if (match) {
+    const mapped = mapAnalyticalToMacro(match.categoria_analitica_final);
+    return {
+      categoriaOrigemExtrato: "PIX ENVIADO",
+      categoriaMacro: mapped.categoriaMacro,
+      categoriaAnaliticaFinal: match.categoria_analitica_final,
+      regraAplicada: `pix_counterparty_match:${match.nome_normalizado}`,
+      confidenceScore: 0.98,
+      requiresReview: false,
+      ehOperacional: mapped.ehOperacional
+    };
+  }
+
+  const fallback = mapAnalyticalToMacro(ANALYTICAL_EXPENSE_CATEGORIES.PIX_OUTROS_FORNECEDORES);
+  return {
+    categoriaOrigemExtrato: "PIX ENVIADO",
+    categoriaMacro: fallback.categoriaMacro,
+    categoriaAnaliticaFinal: ANALYTICAL_EXPENSE_CATEGORIES.PIX_OUTROS_FORNECEDORES,
+    regraAplicada: "pix_no_counterparty_match",
+    confidenceScore: 0.6,
+    requiresReview: true,
+    ehOperacional: fallback.ehOperacional
+  };
 }
 
 /**
