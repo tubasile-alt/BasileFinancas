@@ -7,6 +7,7 @@ import Dashboard from "@/pages/dashboard";
 import MonthlyDashboard from "@/pages/monthly-dashboard";
 import GastosBasilePage from "@/pages/gastos-basile";
 import IndividualControl from "@/pages/individual-control";
+import ExtratoPage from "@/pages/extrato";
 import PatientHistory from "@/pages/patient-history";
 import NotFound from "@/pages/not-found";
 
@@ -17,6 +18,7 @@ function Router() {
       <Route path="/monthly" component={MonthlyDashboard} />
       <Route path="/gastos" component={GastosBasilePage} />
       <Route path="/controle-individual" component={IndividualControl} />
+      <Route path="/extrato" component={ExtratoPage} />
       <Route path="/pacientes/:id" component={PatientHistory} />
       <Route component={NotFound} />
     </Switch>
