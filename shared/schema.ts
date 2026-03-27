@@ -86,7 +86,6 @@ export const bankTransactions = pgTable("bank_transactions", {
   saldo: decimal("saldo", { precision: 10, scale: 2 }),
   categoria: text("categoria").notNull(),
   ehOperacional: integer("eh_operacional").notNull(), // 1 for true, 0 for false
-  categoriaOrigemExtrato: text("categoria_origem_extrato"),
   categoriaMacro: text("categoria_macro"),
   categoriaAnaliticaFinal: text("categoria_analitica_final"),
   regraAplicada: text("regra_aplicada"),
@@ -176,7 +175,6 @@ export type BankTransaction = z.infer<typeof bankTransactionSchema>;
 export const classifiedTransactionSchema = bankTransactionSchema.extend({
   categoria: z.string().min(1, "Categoria é obrigatória"),
   ehOperacional: z.boolean(),
-  categoriaOrigemExtrato: z.string().optional(),
   categoriaMacro: z.string().optional(),
   categoriaAnaliticaFinal: z.string().optional(),
   regraAplicada: z.string().optional(),
