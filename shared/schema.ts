@@ -86,11 +86,6 @@ export const bankTransactions = pgTable("bank_transactions", {
   saldo: decimal("saldo", { precision: 10, scale: 2 }),
   categoria: text("categoria").notNull(),
   ehOperacional: integer("eh_operacional").notNull(), // 1 for true, 0 for false
-  categoriaMacro: text("categoria_macro"),
-  categoriaAnaliticaFinal: text("categoria_analitica_final"),
-  regraAplicada: text("regra_aplicada"),
-  confidenceScore: decimal("confidence_score", { precision: 5, scale: 2 }),
-  requiresReview: integer("requires_review").default(0),
   mes: integer("mes").notNull(),
   ano: integer("ano").notNull(),
   isoWeek: integer("iso_week").notNull(),
@@ -175,11 +170,6 @@ export type BankTransaction = z.infer<typeof bankTransactionSchema>;
 export const classifiedTransactionSchema = bankTransactionSchema.extend({
   categoria: z.string().min(1, "Categoria é obrigatória"),
   ehOperacional: z.boolean(),
-  categoriaMacro: z.string().optional(),
-  categoriaAnaliticaFinal: z.string().optional(),
-  regraAplicada: z.string().optional(),
-  confidenceScore: z.number().optional(),
-  requiresReview: z.boolean().optional(),
   mes: z.number().min(1).max(12),
   ano: z.number().min(1900),
   isoWeek: z.number().min(1).max(53),
