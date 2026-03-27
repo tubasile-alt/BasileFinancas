@@ -1,4 +1,4 @@
-import { Hospital, Home, Calendar, BarChart3, UserCog, FileSpreadsheet } from "lucide-react";
+import { Hospital, Home, Calendar, BarChart3, UserCog, FileSpreadsheet, PieChart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -40,7 +40,13 @@ const navigationItems: NavigationItem[] = [
     label: "Extrato",
     icon: FileSpreadsheet,
     description: "Processador de extrato Itaú PJ"
-  }
+  },
+  {
+    href: "/controle-gastos",
+    label: "Controle de Gastos",
+    icon: PieChart,
+    description: "Análise de gastos por categoria"
+  },
 ];
 
 interface MainNavigationProps {

@@ -342,6 +342,66 @@ function categorize(hist) {
 }
 
 const CAT_COLORS = {'Folha de Pagamento / RH':'3b82f6','Impostos / Tributos':'8b5cf6','Insumos / Materiais Médicos':'06b6d4','Contabilidade / Assessoria':'f59e0b','Serviços de Lavanderia':'84cc16','Tecnologia / Sistemas':'0ea5e9','Manutenção':'d946ef','Serviço de Anestesia':'fb923c','Tarifas / Encargos Bancários':'94a3b8','Financiamento / Empréstimo':'ef4444','Energia Elétrica':'fbbf24','Água / Esgoto':'22d3ee','Telefonia / Internet':'a78bfa','Seguros':'34d399','Marketing / Gráfica':'f472b6','Alimentação / Copa':'fb7185','Sindicato / Encargos Trabalhistas':'64748b','Cartão Corporativo (fatura)':'e879f9','PIX Enviado – Outros Fornecedores':'475569','Transferências Internas':'1e40af','Receitas':'10b981','IGNORAR':'374151','Outros':'374151'};
+
+const STORAGE_KEY_CONTROLE_GASTOS = 'basile:controle-gastos:v1';
+
+function persistForControle(data){
+  try {
+    const monthMap = {};
+    let expenseTransactions = 0;
+    let incomeTransactions = 0;
+
+    data.rows.forEach(r => {
+      const monthKey = r.mesKey;
+      const monthLabel = getMonthLabel(monthKey);
+      if (!monthMap[monthKey]) {
+        monthMap[monthKey] = {
+          key: monthKey,
+          label: monthLabel,
+          totalExpenses: 0,
+          totalIncome: 0,
+          categories: {},
+          detailByCategory: {},
+        };
+      }
+
+      if (r.valor < 0 && r.categoria !== 'IGNORAR') {
+        expenseTransactions += 1;
+        const amount = Math.abs(r.valor);
+        monthMap[monthKey].totalExpenses += amount;
+        monthMap[monthKey].categories[r.categoria] = (monthMap[monthKey].categories[r.categoria] || 0) + amount;
+        if (!monthMap[monthKey].detailByCategory[r.categoria]) monthMap[monthKey].detailByCategory[r.categoria] = [];
+        monthMap[monthKey].detailByCategory[r.categoria].push({
+          data: r.data.toLocaleDateString('pt-BR'),
+          historico: r.hist,
+          valor: amount,
+          documento: r.doc || '',
+        });
+      }
+
+      if (r.valor > 0) {
+        incomeTransactions += 1;
+        monthMap[monthKey].totalIncome += r.valor;
+      }
+    });
+
+    const payload = {
+      version: 2,
+      sourceFile: data.file?.name || '',
+      processedAt: new Date().toISOString(),
+      totals: {
+        transactions: data.rows.length,
+        expenseTransactions,
+        incomeTransactions,
+      },
+      months: Object.values(monthMap).sort((a, b) => a.key.localeCompare(b.key)),
+    };
+
+    localStorage.setItem(STORAGE_KEY_CONTROLE_GASTOS, JSON.stringify(payload));
+  } catch (err) {
+    console.error('Falha ao salvar dados para Controle de Gastos', err);
+  }
+}
 let processedData = null;
 const dropZone = document.getElementById('drop-zone');
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
@@ -354,7 +414,7 @@ function stepActive(id){const el=document.getElementById(id);el.classList.add('a
 function stepDone(id){const el=document.getElementById(id);el.classList.remove('active');el.classList.add('done');const spinner=el.querySelector('.step-spinner');if(spinner) spinner.outerHTML='<span class="step-icon">✓</span>';else el.querySelector('.step-icon').textContent='✓'}
 function stepError(id,msg){const el=document.getElementById(id);el.classList.remove('active');el.classList.add('error');el.querySelector('.step-icon').textContent='✗';showAlert(msg)}
 function showAlert(msg){const el=document.getElementById('alert-box');el.textContent=msg;el.style.display='block'}
-async function processFile(file){document.getElementById('alert-box').style.display='none';document.getElementById('drop-zone').style.display='none';document.getElementById('results').style.display='none';document.getElementById('progress-wrap').style.display='block';initSteps();await delay(80);try{stepActive('s1');await delay(200);const data=await file.arrayBuffer();const wb=XLSX.read(data,{type:'array',cellDates:true});const ws=wb.Sheets[wb.SheetNames[0]];const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});stepDone('s1');await delay(100);stepActive('s2');await delay(200);let headerRow=-1;for(let i=0;i<Math.min(raw.length,10);i++){const r=raw[i];if(!r) continue;const rowStr=r.map(c=>String(c||'').toUpperCase()).join('|');if(rowStr.includes('HISTÓRICO')||rowStr.includes('HISTORICO')||rowStr.includes('DATA')){headerRow=i;break;}}if(headerRow===-1){stepError('s2','Cabeçalho não encontrado. Verifique se o arquivo é um extrato Itaú PJ.');return;}const rows=[];for(let i=headerRow+1;i<raw.length;i++){const r=raw[i];if(!r||!r[0]||!r[1]) continue;let dt=null;const d0=r[0];if(d0 instanceof Date) dt=d0;else if(typeof d0==='number') dt=new Date((d0-25569)*86400000);else if(typeof d0==='string'){const parts=d0.match(/(\d{2})\/(\d{2})\/(\d{4})/);if(parts) dt=new Date(+parts[3],+parts[2]-1,+parts[1]);}if(!dt||isNaN(dt)) continue;const hist=String(r[1]||'').trim();if(!hist||hist==='Histórico'||hist==='HISTÓRICO') continue;const val=parseFloat(String(r[3]||'').replace(',','.'));if(isNaN(val)) continue;const saldo=parseFloat(String(r[4]||'').replace(',','.'));const doc=String(r[2]||'').trim();rows.push({data:dt,hist,doc,valor:val,saldo:isNaN(saldo)?null:saldo});}stepDone('s2');await delay(100);stepActive('s3');await delay(200);if(rows.length===0){stepError('s3','Nenhum lançamento válido encontrado. Verifique o formato do arquivo.');return;}stepDone('s3');await delay(100);stepActive('s4');await delay(300);rows.forEach(r=>{r.categoria=categorize(r.hist);r.mesKey=`${r.data.getFullYear()}-${String(r.data.getMonth()+1).padStart(2,'0')}`;r.mesLabel=r.data.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});r.mesLabel=r.mesLabel.charAt(0).toUpperCase()+r.mesLabel.slice(1);});stepDone('s4');await delay(100);stepActive('s5');await delay(200);const catTotals={};const catCounts={};const months=[...new Set(rows.map(r=>r.mesKey))].sort();const monthPivot={};rows.filter(r=>r.valor<0&&r.categoria!=='IGNORAR').forEach(r=>{const c=r.categoria;catTotals[c]=(catTotals[c]||0)+r.valor;catCounts[c]=(catCounts[c]||0)+1;if(!monthPivot[c]) monthPivot[c]={};monthPivot[c][r.mesKey]=(monthPivot[c][r.mesKey]||0)+r.valor;});const totalSaidas=Object.values(catTotals).reduce((a,b)=>a+b,0);const totalEntradas=rows.filter(r=>r.valor>0).reduce((a,r)=>a+r.valor,0);stepDone('s5');await delay(100);stepActive('s6');await delay(200);processedData={rows,catTotals,catCounts,monthPivot,months,totalSaidas,totalEntradas,file};stepDone('s6');await delay(300);renderResults();}catch(err){console.error(err);showAlert('Erro ao processar: '+err.message);}}
+async function processFile(file){document.getElementById('alert-box').style.display='none';document.getElementById('drop-zone').style.display='none';document.getElementById('results').style.display='none';document.getElementById('progress-wrap').style.display='block';initSteps();await delay(80);try{stepActive('s1');await delay(200);const data=await file.arrayBuffer();const wb=XLSX.read(data,{type:'array',cellDates:true});const ws=wb.Sheets[wb.SheetNames[0]];const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});stepDone('s1');await delay(100);stepActive('s2');await delay(200);let headerRow=-1;for(let i=0;i<Math.min(raw.length,10);i++){const r=raw[i];if(!r) continue;const rowStr=r.map(c=>String(c||'').toUpperCase()).join('|');if(rowStr.includes('HISTÓRICO')||rowStr.includes('HISTORICO')||rowStr.includes('DATA')){headerRow=i;break;}}if(headerRow===-1){stepError('s2','Cabeçalho não encontrado. Verifique se o arquivo é um extrato Itaú PJ.');return;}const rows=[];for(let i=headerRow+1;i<raw.length;i++){const r=raw[i];if(!r||!r[0]||!r[1]) continue;let dt=null;const d0=r[0];if(d0 instanceof Date) dt=d0;else if(typeof d0==='number') dt=new Date((d0-25569)*86400000);else if(typeof d0==='string'){const parts=d0.match(/(\d{2})\/(\d{2})\/(\d{4})/);if(parts) dt=new Date(+parts[3],+parts[2]-1,+parts[1]);}if(!dt||isNaN(dt)) continue;const hist=String(r[1]||'').trim();if(!hist||hist==='Histórico'||hist==='HISTÓRICO') continue;const val=parseFloat(String(r[3]||'').replace(',','.'));if(isNaN(val)) continue;const saldo=parseFloat(String(r[4]||'').replace(',','.'));const doc=String(r[2]||'').trim();rows.push({data:dt,hist,doc,valor:val,saldo:isNaN(saldo)?null:saldo});}stepDone('s2');await delay(100);stepActive('s3');await delay(200);if(rows.length===0){stepError('s3','Nenhum lançamento válido encontrado. Verifique o formato do arquivo.');return;}stepDone('s3');await delay(100);stepActive('s4');await delay(300);rows.forEach(r=>{r.categoria=categorize(r.hist);r.mesKey=`${r.data.getFullYear()}-${String(r.data.getMonth()+1).padStart(2,'0')}`;r.mesLabel=r.data.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});r.mesLabel=r.mesLabel.charAt(0).toUpperCase()+r.mesLabel.slice(1);});stepDone('s4');await delay(100);stepActive('s5');await delay(200);const catTotals={};const catCounts={};const months=[...new Set(rows.map(r=>r.mesKey))].sort();const monthPivot={};rows.filter(r=>r.valor<0&&r.categoria!=='IGNORAR').forEach(r=>{const c=r.categoria;catTotals[c]=(catTotals[c]||0)+r.valor;catCounts[c]=(catCounts[c]||0)+1;if(!monthPivot[c]) monthPivot[c]={};monthPivot[c][r.mesKey]=(monthPivot[c][r.mesKey]||0)+r.valor;});const totalSaidas=Object.values(catTotals).reduce((a,b)=>a+b,0);const totalEntradas=rows.filter(r=>r.valor>0).reduce((a,r)=>a+r.valor,0);stepDone('s5');await delay(100);stepActive('s6');await delay(200);processedData={rows,catTotals,catCounts,monthPivot,months,totalSaidas,totalEntradas,file};persistForControle(processedData);stepDone('s6');await delay(300);renderResults();}catch(err){console.error(err);showAlert('Erro ao processar: '+err.message);}}
 function renderResults(){const {rows,catTotals,catCounts,totalSaidas,totalEntradas,months,file}=processedData;document.getElementById('progress-wrap').style.display='none';document.getElementById('results').style.display='block';const minDate=new Date(Math.min(...rows.map(r=>r.data)));const maxDate=new Date(Math.max(...rows.map(r=>r.data)));document.getElementById('result-meta').textContent=`${file.name}  ·  ${rows.length} lançamentos  ·  ${fmt(minDate)} a ${fmt(maxDate)}`;document.getElementById('periodo-label').textContent=months.map(m=>{const [y,mo]=m.split('-');return new Date(+y,+mo-1,1).toLocaleDateString('pt-BR',{month:'short',year:'numeric'});}).join(' → ');const saqueQtd=rows.filter(r=>r.valor<0&&r.categoria!=='IGNORAR').length;const recQtd=rows.filter(r=>r.valor>0).length;const topCat=Object.entries(catTotals).sort((a,b)=>a[1]-b[1])[0];document.getElementById('kpi-strip').innerHTML=`<div class="kpi" style="--kc:#ef4444"><div class="kpi-label">Total Saídas</div><div class="kpi-val">${fmtR(Math.abs(totalSaidas))}</div><div class="kpi-sub">${saqueQtd} lançamentos de despesa</div></div><div class="kpi" style="--kc:#10b981"><div class="kpi-label">Total Entradas</div><div class="kpi-val">${fmtR(totalEntradas)}</div><div class="kpi-sub">${recQtd} lançamentos de receita</div></div><div class="kpi" style="--kc:#f59e0b"><div class="kpi-label">Maior Categoria</div><div class="kpi-val" style="font-size:14px;margin-top:4px">${topCat?topCat[0].split('/')[0].trim():'—'}</div><div class="kpi-sub">${topCat?fmtR(Math.abs(topCat[1])):''}</div></div><div class="kpi" style="--kc:#8b5cf6"><div class="kpi-label">Categorias</div><div class="kpi-val">${Object.keys(catTotals).length}</div><div class="kpi-sub">categorias identificadas</div></div>`;const sorted=Object.entries(catTotals).sort((a,b)=>a[1]-b[1]);const tbody=document.getElementById('summary-tbody');tbody.innerHTML=sorted.map(([cat,total])=>{const pct=Math.abs(total)/Math.abs(totalSaidas)*100;const color=CAT_COLORS[cat]||'374151';return `<tr><td><span class="cat-dot" style="background:#${color}"></span>${cat}</td><td class="val-red">(${fmtR(Math.abs(total))})</td><td>${catCounts[cat]}</td><td>${pct.toFixed(1)}%<span class="pct-bar-wrap"><span class="pct-bar" style="width:${Math.min(pct,100)}%;background:#${color}"></span></span></td></tr>`;}).join('');}
 function getMonthLabel(mesKey){const [y,m]=mesKey.split('-');const label=new Date(+y,+m-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});return label.charAt(0).toUpperCase()+label.slice(1)}
 function downloadMensal(){const {rows,catTotals,monthPivot,months}=processedData;const wb=XLSX.utils.book_new();const allCats=Object.keys(catTotals).sort();const pivot=[['Categoria',...months.map(getMonthLabel),'TOTAL']];allCats.forEach(cat=>{const row=[cat];let rowTotal=0;months.forEach(m=>{const v=(monthPivot[cat]&&monthPivot[cat][m])?monthPivot[cat][m]:0;row.push(v!==0?+v.toFixed(2):'');rowTotal+=v;});row.push(+rowTotal.toFixed(2));pivot.push(row);});const totRow=['TOTAL GERAL'];let grandTotal=0;months.forEach(m=>{const v=rows.filter(r=>r.valor<0&&r.mesKey===m&&r.categoria!=='IGNORAR').reduce((a,r)=>a+r.valor,0);totRow.push(+v.toFixed(2));grandTotal+=v;});totRow.push(+grandTotal.toFixed(2));pivot.push(totRow);const ws1=XLSX.utils.aoa_to_sheet(pivot);ws1['!cols']=[{wch:38},...months.map(()=>({wch:20})),{wch:20}];XLSX.utils.book_append_sheet(wb,ws1,'Comparativo Mensal');months.forEach(mesKey=>{const label=getMonthLabel(mesKey);const monthRows=rows.filter(r=>r.mesKey===mesKey);const saidas=monthRows.filter(r=>r.valor<0&&r.categoria!=='IGNORAR');const cats=[...new Set(saidas.map(r=>r.categoria))].sort();const data=[[`Clínica Basile — ${label}`],[`Total Saídas: R$ ${Math.abs(saidas.reduce((a,r)=>a+r.valor,0)).toFixed(2).replace('.',',')}`,'',`Total Entradas: R$ ${monthRows.filter(r=>r.valor>0).reduce((a,r)=>a+r.valor,0).toFixed(2).replace('.',',')}`,'',`Lançamentos: ${monthRows.length}`],[]];cats.forEach(cat=>{const catRows=saidas.filter(r=>r.categoria===cat).sort((a,b)=>a.data-b.data);data.push([`▸  ${cat}`]);data.push(['Data','Histórico','Documento','Valor (R$)','Saldo (R$)']);catRows.forEach(r=>{data.push([r.data.toLocaleDateString('pt-BR'),r.hist,r.doc,+r.valor.toFixed(2),r.saldo!==null?+r.saldo.toFixed(2):'']);});const sub=catRows.reduce((a,r)=>a+r.valor,0);data.push(['','','Subtotal',+sub.toFixed(2),'']);data.push([]);});const ws=XLSX.utils.aoa_to_sheet(data);ws['!cols']=[{wch:14},{wch:55},{wch:16},{wch:18},{wch:18}];XLSX.utils.book_append_sheet(wb,ws,label.substring(0,25));});XLSX.writeFile(wb,'basile_extrato_por_mes.xlsx')}
