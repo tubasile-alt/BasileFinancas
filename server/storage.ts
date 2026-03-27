@@ -537,6 +537,12 @@ export class MemStorage implements IStorage {
       ...insertTransaction,
       documento: insertTransaction.documento || null,
       saldo: insertTransaction.saldo || null,
+      categoriaOrigemExtrato: insertTransaction.categoriaOrigemExtrato || null,
+      categoriaMacro: insertTransaction.categoriaMacro || null,
+      categoriaAnaliticaFinal: insertTransaction.categoriaAnaliticaFinal || null,
+      regraAplicada: insertTransaction.regraAplicada || null,
+      confidenceScore: insertTransaction.confidenceScore || null,
+      requiresReview: insertTransaction.requiresReview ?? 0,
       source: insertTransaction.source || "bank_import",
       id,
       createdAt: new Date()
